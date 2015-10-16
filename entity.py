@@ -3,6 +3,8 @@ import types
 from cocos.sprite import Sprite
 from cocos.rect import Rect
 
+from component import *
+
 
 class BoundRect(Rect):
 
@@ -15,8 +17,12 @@ class BoundRect(Rect):
     def __init__(self, *args, **kwargs):
         self.sprite = kwargs.pop('sprite')
         super(BoundRect, self).__init__(*args, **kwargs)
+        # Old rect, holds position of object before movement
+        self.old = Rect(self.x, self.y, self.width, self.height)
 
     def _set_property(self, name, value):
+        # Set value of old to current value
+        setattr(self.old, name, getattr(self, name))
         object.__setattr__(self, name, value)
         self.sprite.position = self.center
         try:
@@ -71,6 +77,12 @@ class Entity(Sprite):
         else:
             self.components.pop(component.__class__)
 
+    def component(self, klass):
+        """
+        Get component for given klass.
+        """
+        return self.components[klass]
+
     def update(self, dt, *args, **kwargs):
         pass
 
@@ -85,7 +97,12 @@ class Entity(Sprite):
 
 
 class Player(Entity):
-    pass
+    def __init__(self, *args, **kwargs):
+        super(self.__class__, self).__init__(*args, **kwargs)
+        self.add_component(Movement())
+        self.add_component(Collisions())
+        self.add_component(Health())
+        self.add_components(Team('Humans'))
 
 
 class Platform(Entity):

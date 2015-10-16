@@ -1,6 +1,7 @@
 METER = 100
 GRAVITY = 9.8*METER
 FPS = 60
+TEAMKILL = False
 
 
 import logging

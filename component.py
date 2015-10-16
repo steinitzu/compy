@@ -11,6 +11,12 @@ class Component(object):
         pass
 
 
+class Display(Component):
+    def __init__(self, images):
+        super(Health, self).__init__()
+        self.images = images
+
+
 class Health(Component):
     def __init__(self):
         super(Health, self).__init__()
@@ -23,9 +29,46 @@ class Health(Component):
         self.amount -= damage
 
 
-class Attack(Component):
+class Team(Component):
     def __init__(self):
         super(self.__class__, self).__init__()
+        self.name = '0'
+
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __ne__(self, other):
+        return self.name != other.name
+
+
+class Hurt(Component):
+    def __init__(self, damage=10):
+        super(self.__class__, self).__init__()
+        self.damage = damage
+
+
+# Attack should be an entity with Push, Hurt and Team components
+# Not a component
+# class Attack(Component):
+#     def __init__(self):
+#         super(self.__class__, self).__init__()
+#         self.damage = 10
+#         # Range is 0 for melee attacks
+#         self.range = 0
+#         # Travel Speed is 0 for melee attacks
+#         self.travel_velocity = 0
+#         # Push value. Multiplied by travel velocity.
+#         self.push = 1
+
+
+class Push(Component):
+    """
+    This component, coupled with a push component
+    will push any entity it comes into contact with.
+    """
+    def __init__(self, strength=1):
+        super(self.__class__, self).__init__()
+        self.strength = strength
 
 
 class Movement(Component):
@@ -33,6 +76,21 @@ class Movement(Component):
         super(self.__class__, self).__init__()
         self.acceleration = [0, 0]
         self.velocity = [0, 0]
+        self.walk_acceleration = 10*config.METER
+        self.max_walk_speed = 10*config.METER
+        self.jump_velocity = 10*config.METER
+
+    def walk(self, accel_mod):
+        if self.max_walk_speed and abs(self.velocity[0]) < self.max_walk_speed:
+            self.acceleration[0] = self.walk_acceleration*accel_mod
+        else:
+            self.acceleration[0] = 0
+
+    def jump(self):
+        self.velocity[1] = self.jump_velocity
+
+    def end_jump(self):
+        self.velocity[1] = 0
 
     def update(self, dt):
         # Update velocity using acceleration, call each frame
@@ -52,6 +110,10 @@ class Collisions(Component):
 
 
 class Gravity(Component):
+    """
+    Add this to Entity to make it fall by config.GRAVITY every second.
+    Must have a Movement component as well.
+    """
     def __init__(self):
         super(self.__class__, self).__init__()
         self.amount = config.GRAVITY*0.5
