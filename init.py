@@ -8,6 +8,7 @@ import pyglet
 from component import *
 from entity import Entity
 from system import SystemsManager
+from control import KeyboardController
 
 pyglet.resource.path = [os.path.join(os.path.realpath(''), 'resources')]
 pyglet.resource.reindex()
@@ -16,6 +17,7 @@ pyglet.resource.reindex()
 class Level0(cocos.layer.Layer):
     def __init__(self):
         super(self.__class__, self).__init__()
+        self.is_event_handler = True
         self.width = 2560
         self.height = 2048
         self.collidables = CollisionManagerGrid(
@@ -36,6 +38,10 @@ class Level0(cocos.layer.Layer):
         self.platforms[0].rect.x = 200
         self.platforms[0].rect.y = 300
         self.add(self.platforms[0])
+
+        self.k = KeyboardController(self.player)
+        self.on_key_press = self.k.on_key_press
+        self.on_key_release = self.k.on_key_release
 
         self.schedule(self.update)
 
@@ -75,6 +81,7 @@ class Level0(cocos.layer.Layer):
         for c in cols:
             self.collidables.add(c)
         self.systems_manager.update(dt)
+        self.k.update()
 
 cocos.director.director.init(width=1920, height=1080,
                              caption='Compy',

@@ -8,7 +8,7 @@ class Controller(object):
         self.entity = entity
 
 
-class KeyBoardController(Controller):
+class KeyboardController(Controller):
     def __init__(self, entity):
         super(self.__class__, self).__init__(entity)
         self.pressed = set([])
@@ -23,22 +23,25 @@ class KeyBoardController(Controller):
             }
 
     def on_key_press(self, key, modifiers):
+        print 'key presssed'
         self.pressed.add(key)
         self.modifiers = modifiers
 
     def on_key_release(self, key, modifiers):
         try:
-            self.keys_pressed.remove(key)
+            self.pressed.remove(key)
         except KeyError:
             pass
         self.modifiers = modifiers
 
     def do_movement(self, entity, pressed):
-        m = p.components[Movement]
+        m = entity.components[Movement]
         if self.map['left'].intersection(pressed):
             m.walk(-1)
         elif self.map['right'].intersection(pressed):
             m.walk(1)
+        else:
+            m.end_walk()
         if self.map['jump'].intersection(pressed):
             m.jump()
         else:
@@ -47,8 +50,5 @@ class KeyBoardController(Controller):
     def update(self):
         p = self.entity
         pressed = self.pressed
-        try:
-            # Will error if no movement component
-            self.do_movement(p, pressed)
-        except:
-            pass
+        # Will error if no movement component
+        self.do_movement(p, pressed)

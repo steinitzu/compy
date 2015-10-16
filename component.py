@@ -138,8 +138,10 @@ class Movement(Component):
         self.acceleration = [0, 0]
         self.velocity = [0, 0]
         self.walk_acceleration = 10*config.METER
-        self.max_walk_speed = 10*config.METER
-        self.jump_velocity = 10*config.METER
+        self.max_walk_speed = 6*config.METER
+        self.jump_acceleration = 20*config.METER
+        self.max_jump_speed = 5*config.METER
+        self.is_jumping = False
 
     def walk(self, accel_mod):
         if self.max_walk_speed and abs(self.velocity[0]) < self.max_walk_speed:
@@ -147,15 +149,25 @@ class Movement(Component):
         else:
             self.acceleration[0] = 0
 
+    def end_walk(self):
+        self.velocity[0] = 0
+        self.acceleration[0] = 0
+
     def jump(self):
-        self.velocity[1] = self.jump_velocity
+        if not self.is_jumping:
+            self.is_jumping = True
+            self.acceleration[1] = self.jump_acceleration
 
     def end_jump(self):
-        self.velocity[1] = 0
+        if self.is_jumping:
+            self.acceleration[1] = 0
+            self.is_jumping = False
 
     def update(self, dt):
         # Update velocity using acceleration, call each frame
         self.velocity[0] += self.acceleration[0]*dt
+        if self.velocity[1] >= self.max_jump_speed:
+            self.acceleration[1] = 0
         self.velocity[1] += self.acceleration[1]*dt
 
 
