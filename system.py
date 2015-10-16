@@ -3,15 +3,17 @@ from entity import Entity
 
 
 class System(object):
-    pass
+    def update(self, dt):
+        pass
 
 
 class MovementSystem(System):
-    def __init__(self, *components):
-        self.movement = None
+    def __init__(self, movement_component):
+        self.movement = movement_component
         self.collisions = None
         self.gravity = None
-        for c in components:
+        components = self.movement.entity.components
+        for c in components.values(): # TODO: Fix later
             if isinstance(c, Movement):
                 self.movement = c
             elif isinstance(c, Collisions):
@@ -22,52 +24,43 @@ class MovementSystem(System):
             raise Exception('MovementSystem must be initialized'
                             + ' with at least a'
                             + ' components.Movement component.')
-        self.collision_handlers = []
-        c = self.collisions
-        if c:
-            for h in c.collision_handlers:
-                if h == c.CORRECT_POSITION:
-                    self.collision_handlers.append(
-                        self._correct_position_handler)
-                elif h == c.DAMAGE:
-                    self.collision_handlers.append(self._damage_handler)
-                elif h == c.PUSH:
-                    self.collision_handlers.append(self._push_handler)
+        self.collision_system = None
+        if self.collisions:
+            self.collision_system = CollisionSystem(self.collisions)
+            self.collision_system.is_child = True
 
     def _move_horizontal(self, entity, movement, dt):
         vx = movement.velocity[0]
         entity.rect.x += vx * dt
         if self.collisions:
-            for ob in self.collisions.get_colliding():
-                for h in self.collision_handlers:
-                    h(entity, ob, axis='x')
+            self.collision_system.handle_collisions(axis='x')
 
     def _move_vertical(self, entity, movement, dt):
-        vy = movement.velocity[1]
         try:
-            vy -= self.gravity.amount
-        except AttributeError:
-            # No gravity
+            movement.velocity[1] -= self.gravity.amount
+        except:
             pass
+        vy = movement.velocity[1]
         entity.rect.y += vy * dt
         if self.collisions:
-            for ob in self.collisions.get_colliding():
-                for h in self.collision_handlers:
-                    h(entity, ob, axis='y')
+            self.collision_system.handle_collisions(axis='y')
 
     def move(self, dt):
         entity = self.movement.entity
         movement = self.movement
-        self.move_horizontal(entity, movement, dt)
-        self.move_vertical(entity, movement, dt)
+        self._move_horizontal(entity, movement, dt)
+        self._move_vertical(entity, movement, dt)
+
+    def update(self, dt):
+        self.move(dt)
 
 
-class ColliisionSystem(self):
-    def __init__(self, entity):
+class CollisionSystem(System):
+    def __init__(self, collision_component):
         super(self.__class__, self).__init__()
-        self.entity = entity
-        if Collisions not in entity.components:
-            raise Exception('Entity must have a Collisions component')
+        self.entity = collision_component.entity
+        entity = self.entity
+        self.component = collision_component
         handlers = []
         if Hurt in entity.components:
             handlers.append(self.deal_damage)
@@ -78,6 +71,19 @@ class ColliisionSystem(self):
                  and Hurt not in entity.components)):
             handlers.append(self.correct_position)
         self.handlers = handlers
+        # Is child and therefor controlled by external system
+        self.is_child = False
+
+    def handle_collisions(self, axis='x'):
+        """
+        Check and handle all collisions.
+        """
+        for ob in self.component.get_colliding():
+            self.handle_collision(ob, axis=axis)
+
+    def handle_collision(self, colliding_object, axis='x'):
+        for h in self.handlers:
+            h(self.entity, colliding_object, axis=axis)
 
     def correct_position(self, entity, colliding_object, axis='x'):
         """
@@ -85,8 +91,9 @@ class ColliisionSystem(self):
         When entity collides with object, it's position will be corrected
         so that it is no longer colliding.
         """
-        solid_edges = colliding_object.component[Collisions].solid_edges
+        solid_edges = colliding_object.component(Collisions).solid_edges
         movement = entity.component(Movement)
+
         # Axis can be X or Y
         if axis == 'x':
             if movement.velocity[0] > 0:
@@ -142,8 +149,46 @@ class ColliisionSystem(self):
             # Colliding object is not movable, carry on
             pass
 
+    def update(self, dt):
+        if not self.is_child:
+            self.handle_collisions()
+
+
+class SystemsManager(object):
+    """
+    One per level/scene.
+    """
+    def __init__(self):
+        self.systems = {}
+
+    def add_entities(self, *entities):
+        """
+        Add entity to systems manager and
+        create systems for it.
+        """
+        for entity in entities:
+            systems = []
+            if Movement in entity.components:
+                m = MovementSystem(entity.component(Movement))
+                systems.append(m)
+            elif Collisions in entity.components:
+                # Not moving, so we add collision system
+                # seperately
+                c = CollisionSystem(entity.component(Collisions))
+                systems.append(c)
+            self.systems[entity] = systems
+
+    def update(self, dt):
+        # Update all components and systems
+        for entity in self.systems.keys():
+            for component in entity.components.values():
+                component.update(dt)
+            for s in self.systems[entity]:
+                s.update(dt)
+
 
 class AttackSystem(System):
+    # Nah...
 
     def __init__(self, fast=None, strong=None, ranged=None):
         self.fast = fast

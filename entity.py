@@ -2,6 +2,7 @@ import types
 
 from cocos.sprite import Sprite
 from cocos.rect import Rect
+from cocos import collision_model
 
 from component import *
 
@@ -51,7 +52,7 @@ class Entity(Sprite):
     """
 
     def __init__(self, image, width_multi=0.9, height_multi=0.9):
-        super(CollidableSprite, self).__init__(image)
+        super(self.__class__, self).__init__(image)
         # self.cshape = collision_model.CircleShape(self.position,
         #                                           self.height/2)
         box_width = int(self.width*width_multi)
@@ -67,9 +68,11 @@ class Entity(Sprite):
 
         self.components = {}
 
-    def add_component(self, component):
-        component.entity = self
-        self.components[component.__class__] = component
+    def add_components(self, *components):
+        for component in components:
+            component.entity = self
+            self.components[component.add_as] = component
+            component.on_add()
 
     def remove_component(self, component):
         if isinstance(component, types.ClassType):

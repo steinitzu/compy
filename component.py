@@ -5,6 +5,14 @@ class Component(object):
 
     def __init__(self):
         self.entity = None
+        # Added with this classname
+        self.add_as = self.__class__
+
+    def on_add(self):
+        """
+        Called when component is added to entity.
+        """
+        pass
 
     def update(self, dt):
         # Called each frame
@@ -13,8 +21,15 @@ class Component(object):
 
 class Display(Component):
     def __init__(self, images):
-        super(Health, self).__init__()
+        """
+        images should be a dict of pyglet images, or paths.
+        {name: Image}
+        """
+        super(self.__class__, self).__init__()
         self.images = images
+
+    def set_image(self, name):
+        self.entity.image = self.images[name]
 
 
 class Health(Component):
@@ -30,9 +45,9 @@ class Health(Component):
 
 
 class Team(Component):
-    def __init__(self):
+    def __init__(self, name):
         super(self.__class__, self).__init__()
-        self.name = '0'
+        self.name = name
 
     def __eq__(self, other):
         return self.name == other.name
@@ -45,6 +60,52 @@ class Hurt(Component):
     def __init__(self, damage=10):
         super(self.__class__, self).__init__()
         self.damage = damage
+
+
+class Weapon(Component):
+    # When a player changes weapons, just swap out his Weapon component
+    # Keep a second list of components not equipped
+    def __init__(self):
+        super(self.__class__, self).__init__()
+
+    def get_components(self):
+        """
+        Return a list of components
+        which will be used to create an attack entity.
+        Override this method in subclass.
+        """
+        team = self.entity.components.get(Team, None)
+        teamname = team.name if team else ''
+        return [Team(teamname)]
+
+
+class Fist(Weapon):
+    def __init__(self, damage=10):
+        super(self.__class__, self).__init__()
+        self.add_as = Weapon
+        self.damage = damage
+
+    def get_components(self):
+        base = super(self.__class__, self).get_components()
+
+        return [Hurt(self.damage),
+                Push(),
+                Collisions()] + base
+
+
+class Pistol(Weapon):
+    def __init__(self, damage=10):
+        super(self.__class__, self).__init__()
+        self.add_as = Weapon
+        self.damage = damage
+        # When a bullet goes off screen, delete it
+
+    def get_components(self):
+        # Get the components for a bullet
+        base = super(self.__class__, self).__init__()
+        return [Hurt(self.damage),
+                Collisions(),
+                Movement()] + base
 
 
 # Attack should be an entity with Push, Hurt and Team components
@@ -102,11 +163,16 @@ class Collisions(Component):
     def __init__(self, collidables):
         super(self.__class__, self).__init__()
         # collidables should be a CollisionManager instance
+        # Parent entity is added to collision manager when
+        # this component is added to entity
         self.collidables = collidables
         self.solid_edges = ['left', 'right', 'top', 'bottom']
 
     def get_colliding(self):
-        return self.colliding.objs_colliding(self.entity)
+        return self.collidables.objs_colliding(self.entity)
+
+    def on_add(self):
+        self.collidables.add(self.entity)
 
 
 class Gravity(Component):
