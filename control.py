@@ -9,6 +9,10 @@ class Controller(object):
 
 
 class KeyboardController(Controller):
+
+    # TODO: Controller should be a component
+    # Event component for keyboard and joystick
+    # controllers?
     def __init__(self, entity):
         super(self.__class__, self).__init__(entity)
         self.pressed = set([])

@@ -154,19 +154,20 @@ class Movement(Component):
         self.acceleration[0] = 0
 
     def jump(self):
-        if not self.is_jumping:
+        if not self.is_jumping and self.velocity[1] == 0:
             self.is_jumping = True
             self.acceleration[1] = self.jump_acceleration
 
     def end_jump(self):
         if self.is_jumping:
-            self.acceleration[1] = 0
             self.is_jumping = False
+            self.acceleration[1] = 0
 
     def update(self, dt):
         # Update velocity using acceleration, call each frame
         self.velocity[0] += self.acceleration[0]*dt
         if self.velocity[1] >= self.max_jump_speed:
+            # To prevent jumping to infinite heights
             self.acceleration[1] = 0
         self.velocity[1] += self.acceleration[1]*dt
 
