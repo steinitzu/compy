@@ -2,6 +2,7 @@ METER = 128
 GRAVITY = 9.8*METER
 FPS = 60
 TEAMKILL = False
+NODE_SPACING = 1*METER
 
 
 import logging

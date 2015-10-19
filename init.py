@@ -93,7 +93,7 @@ class Level0(cocos.layer.Layer):
         # Always add controller before movement
         # Or won't be able to jump
         keyboard = KeyboardController()
-        movement = Movement()
+        movement = PlayerMovement()
         collisions = Collisions(self.collidables)
         health = Health()
         gravity = Gravity()

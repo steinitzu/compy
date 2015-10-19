@@ -46,7 +46,7 @@ class Controller(EventComponent):
 
 class KeyboardController(Controller):
     def __init__(self):
-        super(self.__class__, self).__init__()
+        super(KeyboardController, self).__init__()
         self.pressed = set()
         self.modifiers = None
 
@@ -87,6 +87,45 @@ class KeyboardController(Controller):
         pressed = self.pressed
         # Will error if no movement component
         self.do_movement(p, pressed)
+
+
+class PathNodes(Component):
+    """
+    When added to a walkable surface, adds pathnodes to it.
+    """
+    def __init__(self):
+        super(self.__class__, self).__init__()
+        self.nodes = []
+
+    def generate_nodes(self):
+        entity = self.entity
+        if (Collisions not in entity.components
+            or 'top' not in entity.component(Collisions).solid_edges):
+            self.nodes = []
+            return
+        nodes = []
+        width = entity.rect.width
+        xpos = entity.rect.left
+        for i in range(width/config.NODE_SPACING):
+            nodes.append([xpos, self.rect.top])
+            xpos += config.NODE_SPACING
+        self.nodes = nodes
+
+    def on_add(self):
+        self.generate_nodes()
+
+    def update(self, dt):
+        rect = self.entity.rect
+        if rect.y != rect.old.y or rect.x != rect.old.x:
+            self.generate_nodes()
+
+
+class PathFinding(Component):
+    def __init__(self):
+        super(self.__class__, self).__init__()
+        self.goal = None
+        self.current_destination = None
+        self.path = []
 
 
 class Display(Component):
@@ -178,20 +217,6 @@ class Pistol(Weapon):
                 Movement()] + base
 
 
-# Attack should be an entity with Push, Hurt and Team components
-# Not a component
-# class Attack(Component):
-#     def __init__(self):
-#         super(self.__class__, self).__init__()
-#         self.damage = 10
-#         # Range is 0 for melee attacks
-#         self.range = 0
-#         # Travel Speed is 0 for melee attacks
-#         self.travel_velocity = 0
-#         # Push value. Multiplied by travel velocity.
-#         self.push = 1
-
-
 class Push(Component):
     """
     This component, coupled with a push component
@@ -203,10 +228,26 @@ class Push(Component):
 
 
 class Movement(Component):
+    """
+    Basic movement component.
+    """
     def __init__(self):
-        super(self.__class__, self).__init__()
+        super(Movement, self).__init__()
         self.acceleration = [0, 0]
         self.velocity = [0, 0]
+
+    def update(self, dt):
+        self.velocity[0] += self.acceleration[0]*dt
+        self.velocity[1] += self.acceleration[1]*dt
+
+
+class PlayerMovement(Movement):
+    """
+    Movement for players, jump, walk and such functions.
+    """
+    def __init__(self):
+        super(self.__class__, self).__init__()
+        self.add_as = Movement
         self.walk_acceleration = 8*config.METER
         self.max_walk_speed = 4*config.METER
         self.jump_acceleration = 40*config.METER
@@ -251,10 +292,7 @@ class Movement(Component):
             self.acceleration[1] = 0
             self.velocity[1] = self.max_jump_speed
 
-        self.velocity[0] += self.acceleration[0]*dt
-        self.velocity[1] += self.acceleration[1]*dt
-
-
+        super(self.__class__, self).update(dt)
 
 
 class Collisions(Component):
@@ -265,12 +303,22 @@ class Collisions(Component):
         # this component is added to entity
         self.collidables = collidables
         self.solid_edges = ['left', 'right', 'top', 'bottom']
+        self.disabled = 0
 
     def get_colliding(self):
-        return self.collidables.objs_colliding(self.entity)
+        if not self.disabled:
+            return self.collidables.objs_colliding(self.entity)
 
     def on_add(self):
         self.collidables.add(self.entity)
+
+    def disable(self, frames=1):
+        # Disable collision checking for x frames
+        self.disabled = frames
+
+    def update(self, dt):
+        if self.disabled:
+            self.disabled -= 1
 
 
 class Gravity(Component):

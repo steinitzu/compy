@@ -82,6 +82,9 @@ class CollisionSystem(System):
         """
         Check and handle all collisions.
         """
+        if not self.handlers:
+            # No collision handlers, move along
+            return
         for ob in self.component.get_colliding():
             self.handle_collision(ob, axis=axis)
 
