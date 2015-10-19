@@ -1,4 +1,5 @@
 import types
+from collections import OrderedDict
 
 from cocos.sprite import Sprite
 from cocos.rect import Rect
@@ -66,7 +67,7 @@ class Entity(Sprite):
         self.rect.width = int(self.width*width_multi)
         self.rect.height = int(self.height*height_multi)
 
-        self.components = {}
+        self.components = OrderedDict()
 
     def add_components(self, *components):
         for component in components:

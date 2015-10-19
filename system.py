@@ -1,5 +1,9 @@
+import logging
+
 from component import *
 from entity import Entity
+
+log = logging.getLogger('compy')
 
 
 class System(object):
@@ -82,6 +86,7 @@ class CollisionSystem(System):
             self.handle_collision(ob, axis=axis)
 
     def handle_collision(self, colliding_object, axis='x'):
+        log.info('Collided')
         for h in self.handlers:
             h(self.entity, colliding_object, axis=axis)
 
@@ -93,6 +98,7 @@ class CollisionSystem(System):
         """
         solid_edges = colliding_object.component(Collisions).solid_edges
         movement = entity.component(Movement)
+        log.info('Correcting position')
 
         # Axis can be X or Y
         if axis == 'x':
@@ -100,26 +106,35 @@ class CollisionSystem(System):
                 if 'left' not in solid_edges:
                     return
                 entity.rect.right = colliding_object.rect.left
+                movement.velocity[0] = 0
+                movement.acceleration[0] = 0
             elif movement.velocity[0] < 0:
                 if 'right' not in solid_edges:
                     return
                 entity.rect.left = colliding_object.rect.right
-            movement.velocity[0] = 0
-            movement.acceleration[0] = 0
+                movement.velocity[0] = 0
+                movement.acceleration[0] = 0
         elif axis == 'y':
             if movement.velocity[1] > 0:
+                log.info('Correcting on up movement')
                 # Moving up
                 if 'bottom' not in solid_edges:
                     return
+                # if entity.rect.old.top > colliding_object.rect.bottom:
+                #      return
                 entity.rect.top = colliding_object.rect.bottom
+                movement.velocity[1] = 0
+                movement.acceleration[1] = 0
             elif movement.velocity[1] < 0:
+                log.info('Correcting on Down movement')
                 if 'top' not in solid_edges:
                     return
                 if entity.rect.old.bottom < colliding_object.rect.top:
                     return
                 entity.rect.bottom = colliding_object.rect.top
-            movement.velocity[1] = 0
-            movement.acceleration[1] = 0
+                movement.velocity[1] = 0
+                movement.acceleration[1] = 0
+
 
     def deal_damage(self, entity, colliding_object, axis=None):
         """
@@ -159,6 +174,7 @@ class SystemsManager(object):
     One per level/scene.
     """
     def __init__(self):
+        # Entity: [systems]
         self.systems = {}
 
     def add_entities(self, *entities):
@@ -183,8 +199,8 @@ class SystemsManager(object):
         for entity in self.systems.keys():
             for component in entity.components.values():
                 component.update(dt)
-            for s in self.systems[entity]:
-                s.update(dt)
+            for system in self.systems[entity]:
+                system.update(dt)
 
 
 class AttackSystem(System):

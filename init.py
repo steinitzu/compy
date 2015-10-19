@@ -8,7 +8,7 @@ import pyglet
 from component import *
 from entity import Entity
 from system import SystemsManager
-from control import KeyboardController
+#from control import KeyboardController
 
 pyglet.resource.path = [os.path.join(os.path.realpath(''), 'resources')]
 pyglet.resource.reindex()
@@ -33,27 +33,55 @@ class Level0(cocos.layer.Layer):
         self.player.rect.x = 200
         self.player.rect.y = 500
 
-        self.add(self.player)
+        self.add(self.player, z=2)
 
-        self.platforms[0].rect.x = 200
-        self.platforms[0].rect.y = 300
-        self.add(self.platforms[0])
-
-        self.k = KeyboardController(self.player)
-        self.on_key_press = self.k.on_key_press
-        self.on_key_release = self.k.on_key_release
+        for p in self.platforms:
+            self.add(p, z=1)
 
         self.schedule(self.update)
 
     def build_platforms(self):
         platforms = []
-        for i in range(10):
+        xpos = 0
+        for i in range(self.width/256):
             img = 'greyplatform256x24.png'
             display = Display({'default': img})
             collisions = Collisions(self.collidables)
             e = Entity(img, width_multi=1, height_multi=1)
             e.add_components(display, collisions)
             platforms.append(e)
+            e.rect.left = xpos
+            e.rect.bottom = 300
+            xpos += e.rect.width
+
+        img = 'greyplatform256x24.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        e = Entity(img, width_multi=1, height_multi=1)
+        e.add_components(display, collisions)
+        platforms.append(e)
+        e.rect.left = 0
+        e.rect.bottom = 340
+
+        img = 'greyplatform256x24.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        e = Entity(img, width_multi=1, height_multi=1)
+        e.add_components(display, collisions)
+        platforms.append(e)
+        e.rect.right = self.width
+        e.rect.bottom = 340
+
+        img = 'greyplatform256x24.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        collisions.solid_edges = ['top']
+        e = Entity(img, width_multi=1, height_multi=1)
+        e.add_components(display, collisions)
+        platforms.append(e)
+        e.rect.right = 400
+        e.rect.bottom = 550
+
         return platforms
 
     def build_player(self):
@@ -62,12 +90,17 @@ class Level0(cocos.layer.Layer):
         display = Display({'default': rightimg,
                            'right': rightimg,
                            'leftl': leftimg})
-        collisions = Collisions(self.collidables)
+        # Always add controller before movement
+        # Or won't be able to jump
+        keyboard = KeyboardController()
         movement = Movement()
+        collisions = Collisions(self.collidables)
         health = Health()
         gravity = Gravity()
-        e = Entity(rightimg)
+
+        e = Entity(rightimg, width_multi=0.8, height_multi=0.8)
         e.add_components(display,
+                         keyboard,
                          collisions,
                          movement,
                          health,
@@ -76,12 +109,11 @@ class Level0(cocos.layer.Layer):
 
     def update(self, dt):
         # TODO: Update systems and components here
+        self.systems_manager.update(dt)
         cols = self.collidables.known_objs()
         self.collidables.clear()
         for c in cols:
             self.collidables.add(c)
-        self.systems_manager.update(dt)
-        self.k.update()
 
 cocos.director.director.init(width=1920, height=1080,
                              caption='Compy',
