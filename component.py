@@ -347,17 +347,6 @@ class Movement(Component):
             self.acceleration, self.velocity)
 
 
-class AutoMovement(Movement):
-    def __init__(self):
-        super(AutoMovement, self).__init__()
-        self.add_as = Movement
-        self.move_by = [500, 0]
-        # Moves back and forth between start and self
-        self.repeats = True
-
-    def update(self, dt):
-        raise NotImplementedError
-
 class PlayerMovement(Movement):
     """
     Movement for players, jump, walk and such functions.

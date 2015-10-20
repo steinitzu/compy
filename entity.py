@@ -41,6 +41,9 @@ class BoundRect(Rect):
                     'x', 'y')
         if name in posattrs:
             self._set_property(name, value)
+        elif name in ('width', 'height'):
+            setattr(self.old, name, value)
+            object.__setattr__(self, name, value)
         else:
             object.__setattr__(self, name, value)
 

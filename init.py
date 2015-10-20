@@ -30,7 +30,7 @@ class Level0(cocos.layer.Layer):
         self.systems_manager = SystemsManager()
         self.systems_manager.add_entities(*self.platforms)
         self.systems_manager.add_entities(self.player)
-        self.player.rect.x = 200
+        # self.player.rect.x = 200
         self.player.rect.y = 500
 
         self.add(self.player, z=2)
@@ -81,6 +81,16 @@ class Level0(cocos.layer.Layer):
         platforms.append(e)
         e.rect.left = 400
         e.rect.bottom = 700
+
+        # Collidable
+        img = 'greyplatform256x24.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        e = Entity(img, width_multi=1, height_multi=1)
+        e.add_components(display, collisions)
+        platforms.append(e)
+        e.rect.left = 800
+        e.rect.bottom = 340
 
         # Moving platform
         img = 'greyplatform256x24.png'

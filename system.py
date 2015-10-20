@@ -1,4 +1,5 @@
 import logging
+from collections import OrderedDict
 
 from component import *
 from entity import Entity
@@ -103,11 +104,18 @@ class CollisionSystem(System):
         """
         solid_edges = colliding_object.component(Collisions).solid_edges
         movement = entity.component(Movement)
-
+        rect = entity.rect
         # Axis can be X or Y
+
         if axis == 'x':
-            if movement.velocity[0] > 0:
+            if rect.x > rect.old.x:
+                # moving right
                 if 'left' not in solid_edges:
+                    return
+                log.info('Rect.x: %s, old.x: %s, right: %s, oldright: %s',
+                         rect.x, rect.old.x, rect.right, rect.old.right)
+                log.info('rect width: %s, old width: %s', rect.width, rect.old.width)
+                if entity.rect.old.right > colliding_object.rect.left+5:
                     return
                 try:
                     # To detect moving platforms going up
@@ -118,8 +126,11 @@ class CollisionSystem(System):
                 entity.rect.right = colliding_object.rect.left
                 movement.velocity[0] = 0
                 movement.acceleration[0] = 0
-            elif movement.velocity[0] < 0:
+            elif rect.x < rect.old.x:
+                # moving left
                 if 'right' not in solid_edges:
+                    return
+                if entity.rect.old.left < colliding_object.rect.right:
                     return
                 try:
                     if colliding_object.component(Movement).velocity[1] > 0:
@@ -130,24 +141,31 @@ class CollisionSystem(System):
                 movement.velocity[0] = 0
                 movement.acceleration[0] = 0
         elif axis == 'y':
-            if movement.velocity[1] > 0:
+            if rect.y > rect.old.y:
                 # Moving up
                 if 'bottom' not in solid_edges:
                     return
-                # if entity.rect.old.top > colliding_object.rect.bottom:
-                #      return
+                if entity.rect.old.top > colliding_object.rect.bottom:
+                      return
                 entity.rect.top = colliding_object.rect.bottom
                 movement.velocity[1] = 0
                 movement.acceleration[1] = 0
-            elif movement.velocity[1] < 0:
+            elif rect.y < rect.old.y:
                 if 'top' not in solid_edges:
                     return
-                if (entity.rect.old.bottom < colliding_object.rect.top
-                    and (colliding_object.rect.old.top
-                         >= colliding_object.rect.top)):
+                if entity.rect.old.bottom < colliding_object.rect.top:
+                    return
+                if (Movement in colliding_object.components
+                    and colliding_object.rect.x != colliding_object.rect.old.x):
+                    # FUUUUUUUUUUUUUUUUUU
+                    dx = colliding_object.rect.x - colliding_object.rect.old.x
+                    entity.rect.x += dx
+                # if (entity.rect.old.bottom < colliding_object.rect.top
+                #     and (colliding_object.rect.old.top
+                #          >= colliding_object.rect.top)):
                     # Seconds contition is for moving platforms
                     # going up (elevators)
-                    return
+                    #return
                 entity.rect.bottom = colliding_object.rect.top
                 movement.velocity[1] = 0
                 movement.acceleration[1] = 0
@@ -177,6 +195,7 @@ class CollisionSystem(System):
             return
         dx = entity.rect.x - entity.rect.old.x
         dy = entity.rect.y - entity.rect.old.y
+        m = colliding_object.component(Movement)
         colliding_object.rect.x += dx
         colliding_object.rect.y += dy
 
@@ -191,7 +210,7 @@ class SystemsManager(object):
     """
     def __init__(self):
         # Entity: [systems]
-        self.systems = {}
+        self.systems = OrderedDict()
 
     def add_entities(self, *entities):
         """
