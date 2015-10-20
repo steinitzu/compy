@@ -65,16 +65,19 @@ class CollisionSystem(System):
         self.entity = collision_component.entity
         entity = self.entity
         self.component = collision_component
-        handlers = []
-        if Hurt in entity.components:
-            handlers.append(self.deal_damage)
-        if Push in entity.components:
-            handlers.append(self.push)
-        if (Movement in entity.components
-            and (Push not in entity.components
-                 and Hurt not in entity.components)):
-            handlers.append(self.correct_position)
-        self.handlers = handlers
+        if self.component.no_handlers:
+            self.handlers = []
+        else:
+            handlers = []
+            if Hurt in entity.components:
+                handlers.append(self.deal_damage)
+            if Push in entity.components:
+                handlers.append(self.push)
+            if (Movement in entity.components
+                and (Push not in entity.components
+                     and Hurt not in entity.components)):
+                handlers.append(self.correct_position)
+            self.handlers = handlers
         # Is child and therefor controlled by external system
         self.is_child = False
 
@@ -89,7 +92,6 @@ class CollisionSystem(System):
             self.handle_collision(ob, axis=axis)
 
     def handle_collision(self, colliding_object, axis='x'):
-        log.info('Collided')
         for h in self.handlers:
             h(self.entity, colliding_object, axis=axis)
 
@@ -101,25 +103,34 @@ class CollisionSystem(System):
         """
         solid_edges = colliding_object.component(Collisions).solid_edges
         movement = entity.component(Movement)
-        log.info('Correcting position')
 
         # Axis can be X or Y
         if axis == 'x':
             if movement.velocity[0] > 0:
                 if 'left' not in solid_edges:
                     return
+                try:
+                    # To detect moving platforms going up
+                    if colliding_object.component(Movement).velocity[1] > 0:
+                        return
+                except KeyError:
+                    pass
                 entity.rect.right = colliding_object.rect.left
                 movement.velocity[0] = 0
                 movement.acceleration[0] = 0
             elif movement.velocity[0] < 0:
                 if 'right' not in solid_edges:
                     return
+                try:
+                    if colliding_object.component(Movement).velocity[1] > 0:
+                        return
+                except KeyError:
+                    pass
                 entity.rect.left = colliding_object.rect.right
                 movement.velocity[0] = 0
                 movement.acceleration[0] = 0
         elif axis == 'y':
             if movement.velocity[1] > 0:
-                log.info('Correcting on up movement')
                 # Moving up
                 if 'bottom' not in solid_edges:
                     return
@@ -129,10 +140,13 @@ class CollisionSystem(System):
                 movement.velocity[1] = 0
                 movement.acceleration[1] = 0
             elif movement.velocity[1] < 0:
-                log.info('Correcting on Down movement')
                 if 'top' not in solid_edges:
                     return
-                if entity.rect.old.bottom < colliding_object.rect.top:
+                if (entity.rect.old.bottom < colliding_object.rect.top
+                    and (colliding_object.rect.old.top
+                         >= colliding_object.rect.top)):
+                    # Seconds contition is for moving platforms
+                    # going up (elevators)
                     return
                 entity.rect.bottom = colliding_object.rect.top
                 movement.velocity[1] = 0
@@ -154,18 +168,17 @@ class CollisionSystem(System):
 
     def push(self, entity, colliding_object, axis=None):
         """
-        This handler pushes colliding object back.
-        This is for entities with a Push component. (e.g. a sonic attack)
+        This handler pushes colliding objects.
+        A moving platform for instance, will move any players
+        it collides with accordingly.
         """
         # Axis doesn't matter here
-        strength = entity.component(Push).strength
-        v = entity.component(Movement).velocity
-        try:
-            colliding_object.component(Movement).velocity = [
-                v[0]*strength, v[1]*strength]
-        except KeyError:
-            # Colliding object is not movable, carry on
-            pass
+        if not Movement in colliding_object.components:
+            return
+        dx = entity.rect.x - entity.rect.old.x
+        dy = entity.rect.y - entity.rect.old.y
+        colliding_object.rect.x += dx
+        colliding_object.rect.y += dy
 
     def update(self, dt):
         if not self.is_child:

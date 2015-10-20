@@ -79,9 +79,41 @@ class Level0(cocos.layer.Layer):
         e = Entity(img, width_multi=1, height_multi=1)
         e.add_components(display, collisions)
         platforms.append(e)
-        e.rect.right = 400
-        e.rect.bottom = 550
+        e.rect.left = 400
+        e.rect.bottom = 700
 
+        # Moving platform
+        img = 'greyplatform256x24.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        #collisions.solid_edges = ['top']
+        automove = AutoMoveController()
+        automove.move_by = 300, 200
+        automove.duration = 4
+        movement = Movement()
+        push = Push()
+        e = Entity(img, width_multi=1, height_multi=1)
+        e.add_components(display, collisions, automove, movement, push)
+        e.rect.left = 400
+        e.rect.bottom = 324
+        platforms.append(e)
+
+
+        img = 'switch32x32.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        collisions.solid_edges = []
+        collisions.no_handlers = True
+        usable = Usable(automove)
+        team = Team('humans')
+        switch = Entity(img)
+        switch.add_components(display,
+                              collisions,
+                              usable,
+                              team)
+        switch.rect.x, switch.rect.bottom = (400, 380)
+        switch.bound_to = e
+        platforms.append(switch)
         return platforms
 
     def build_player(self):
@@ -95,8 +127,11 @@ class Level0(cocos.layer.Layer):
         keyboard = KeyboardController()
         movement = PlayerMovement()
         collisions = Collisions(self.collidables)
+        collisions.solid_edges = []
         health = Health()
         gravity = Gravity()
+        team = Team('humans')
+        use = Use()
 
         e = Entity(rightimg, width_multi=0.8, height_multi=0.8)
         e.add_components(display,
@@ -104,7 +139,9 @@ class Level0(cocos.layer.Layer):
                          collisions,
                          movement,
                          health,
-                         gravity)
+                         gravity,
+                         team,
+                         use)
         return e
 
     def update(self, dt):

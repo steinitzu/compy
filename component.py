@@ -1,6 +1,7 @@
 import logging
 
 from cocos.director import director
+from cocos.euclid import Point2
 
 from pyglet.window import key as keycode
 from pyglet.window.key import KeyStateHandler
@@ -44,6 +45,52 @@ class Controller(EventComponent):
         super(Controller, self).__init__()
 
 
+class AutoMoveController(Component):
+    """
+    Depends on a movement component.
+    """
+    def __init__(self):
+        super(AutoMoveController, self).__init__()
+
+        # x, y points to move by
+        self.move_by = (0, 0)
+        # Duration in seconds
+        self.duration = 10
+        self.target = (0, 0)
+        self._elapsed = 0
+        # When finished, will run in reverse on next start
+        self.reversable = True
+
+    def start(self):
+        movement = self.entity.component(Movement)
+        self._elapsed = 0
+        px, py = self.entity.rect.x, self.entity.rect.y
+        dx, dy = self.move_by
+        self.target = (px+dx, py+dy)
+        vx = dx/self.duration
+        vy = dy/self.duration
+        movement.velocity = [vx, vy]
+
+    def stop(self):
+        self.entity.component(Movement).velocity = [0, 0]
+        self.reverse()
+
+    def state(self):
+        # State is either on or off, true/false, 1/0
+        m = self.entity.component(Movement)
+        return m.velocity[0] or m.velocity[1]
+
+    def reverse(self):
+        if self.reversable:
+            self.move_by = -self.move_by[0], -self.move_by[1]
+
+    def update(self, dt):
+        if self.state():
+            self._elapsed += dt
+            if  self._elapsed >= self.duration:
+                self.stop()
+
+
 class KeyboardController(Controller):
     def __init__(self):
         super(KeyboardController, self).__init__()
@@ -56,6 +103,7 @@ class KeyboardController(Controller):
             'jump': {keycode.SPACE},
             'down': {keycode.DOWN},
             'up': {keycode.UP},
+            'use': {keycode.E},
             }
 
     def on_key_press(self, key, modifiers):
@@ -82,11 +130,66 @@ class KeyboardController(Controller):
         else:
             m.end_jump()
 
+    def do_use(self, entity, pressed):
+        u = entity.component(Use)
+        if self.map['use'].intersection(pressed):
+            u.use()
+            for k in self.map['use']:
+                pressed.discard(k)
+
     def update(self, dt):
         p = self.entity
         pressed = self.pressed
         # Will error if no movement component
         self.do_movement(p, pressed)
+        self.do_use(p, pressed)
+
+
+class Usable(Component):
+    """
+    Makes an entity usable, generally by player pressing
+    the 'use' button while touching. (e.g. a switch)
+    It controls a second component referenced by 'controls_component' attribute.
+    That component should have a 'start' attribute.
+    The entity should generally have a Collision component.
+    If entity has a Team component, only entities of same team can use it.
+    """
+    def __init__(self, controlled_component):
+        super(Usable, self).__init__()
+        self.controlled_component = controlled_component
+        self.state = 0
+
+    def can_use(self, used_by):
+        can_use = False
+        if Team in self.entity.components:
+            if self.entity.component(Team) == used_by.component(Team):
+                can_use = True
+        else:
+            can_use = True
+        return can_use
+
+    def use(self, used_by):
+        if self.can_use(used_by):
+            if self.controlled_component.state():
+                self.controlled_component.stop()
+            else:
+                self.controlled_component.start()
+
+
+class Use(Component):
+    """
+    Allows entity to use Usable components.
+    Must have Collisions component.
+    """
+    def __init__(self):
+        super(Use, self).__init__()
+
+    def use(self):
+        for entity in self.entity.component(Collisions).get_colliding():
+            try:
+                entity.component(Usable).use(self.entity)
+            except KeyError:
+                pass
 
 
 class PathNodes(Component):
@@ -222,9 +325,8 @@ class Push(Component):
     This component, coupled with a push component
     will push any entity it comes into contact with.
     """
-    def __init__(self, strength=1):
+    def __init__(self):
         super(self.__class__, self).__init__()
-        self.strength = strength
 
 
 class Movement(Component):
@@ -240,13 +342,28 @@ class Movement(Component):
         self.velocity[0] += self.acceleration[0]*dt
         self.velocity[1] += self.acceleration[1]*dt
 
+    def __str__(self):
+        return 'Acceleration: {}\nVelocity: {}'.format(
+            self.acceleration, self.velocity)
+
+
+class AutoMovement(Movement):
+    def __init__(self):
+        super(AutoMovement, self).__init__()
+        self.add_as = Movement
+        self.move_by = [500, 0]
+        # Moves back and forth between start and self
+        self.repeats = True
+
+    def update(self, dt):
+        raise NotImplementedError
 
 class PlayerMovement(Movement):
     """
     Movement for players, jump, walk and such functions.
     """
     def __init__(self):
-        super(self.__class__, self).__init__()
+        super(PlayerMovement, self).__init__()
         self.add_as = Movement
         self.walk_acceleration = 8*config.METER
         self.max_walk_speed = 4*config.METER
@@ -304,10 +421,16 @@ class Collisions(Component):
         self.collidables = collidables
         self.solid_edges = ['left', 'right', 'top', 'bottom']
         self.disabled = 0
+        self.no_handlers = False
 
     def get_colliding(self):
         if not self.disabled:
             return self.collidables.objs_colliding(self.entity)
+
+    def collides_with(self, other):
+        # Check one collision component against this one
+        return self.collidables.they_collide(
+            self.entity, other.entity)
 
     def on_add(self):
         self.collidables.add(self.entity)

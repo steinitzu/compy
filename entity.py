@@ -52,7 +52,7 @@ class Entity(Sprite):
     The rect is aligned with the collision shape.
     """
 
-    def __init__(self, image, width_multi=0.9, height_multi=0.9):
+    def __init__(self, image, width_multi=1, height_multi=1):
         super(self.__class__, self).__init__(image)
         # self.cshape = collision_model.CircleShape(self.position,
         #                                           self.height/2)
@@ -68,6 +68,10 @@ class Entity(Sprite):
         self.rect.height = int(self.height*height_multi)
 
         self.components = OrderedDict()
+        # Can bound to another entity.
+        # This means whenever bound_to moves, this entity moves as well.
+        # Only works one way
+        self.bound_to = None
 
     def add_components(self, *components):
         for component in components:
@@ -88,7 +92,12 @@ class Entity(Sprite):
         return self.components[klass]
 
     def update(self, dt, *args, **kwargs):
-        pass
+        if not self.bound_to:
+            return
+        delta_pos = (self.bound_to.rect.x - self.bound_to.rect.old.x,
+                     self.bound_to.rect.y - self.bound_to.rect.old.y)
+        self.rect.x += delta_pos[0]
+        self.rect.y += delta_pos[1]
 
     def get_rect(self):
         """
