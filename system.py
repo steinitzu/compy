@@ -138,6 +138,11 @@ class CollisionSystem(System):
                     return
                 if cobmovingx:
                     return
+                if cobgoingup:
+                    if entity.rect.bottom >= cob.rect.old.top:
+                        # Otherwise player will fall be warped off
+                        # fast moving elevators
+                        return
                 entity.rect.right = cob.rect.left
                 stop_movement(movement, 0)
             elif goingleft:
@@ -146,26 +151,22 @@ class CollisionSystem(System):
                     return
                 if cobmovingx:
                     return
+                if cobgoingup:
+                    if entity.rect.bottom >= cob.rect.old.top:
+                        # Otherwise player will fall be warped off
+                        # fast moving elevators
+                        return
                 entity.rect.left = cob.rect.right
                 stop_movement(movement, 0)
             elif cobgoingleft:
                 log.info('cob going left')
                 if 'left' not in solid_edges:
                     return
-                # if entity.rect.old.right > cob.rect.left:
-                #     return
-                # dx = cob.rect.x - cob.rect.old.x
-                # entity.rect.left += dx
                 stop_movement(movement, 0)
             elif cobgoingright:
                 log.info('cob going right')
                 if 'right' not in solid_edges:
                     return
-                # if entity.rect.old.left < cob.rect.right:
-                #     return
-                # dx = cob.rect.x - cob.rect.old.x
-                # entity.rect.left += dx
-                #entity.rect.left = cob.rect.right
                 stop_movement(movement, 0)
         elif axis == 'y':
             log.info('Correcting Y axis')
@@ -187,6 +188,8 @@ class CollisionSystem(System):
                         pass
                     else:
                         return
+                # This makes it so that entity
+                # doesn't slide off moving platforms
                 dx = cob.rect.x - cob.rect.old.x
                 entity.rect.left += dx
                 entity.rect.bottom = cob.rect.top

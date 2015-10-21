@@ -5,6 +5,7 @@ from cocos.euclid import Point2
 
 from pyglet.window import key as keycode
 from pyglet.window.key import KeyStateHandler
+import pyglet
 
 import config
 
@@ -45,50 +46,55 @@ class Controller(EventComponent):
         super(Controller, self).__init__()
 
 
-class AutoMoveController(Component):
+class ElevatorController(Component):
     """
-    Depends on a movement component.
+    Controls a Movement component.
     """
-    def __init__(self):
-        super(AutoMoveController, self).__init__()
-
-        # x, y points to move by
+    def __init__(self, movement, move_by=(0, 0), duration=5):
+        super(ElevatorController, self).__init__()
+        self.movement = movement
         self.move_by = (0, 0)
-        # Duration in seconds
-        self.duration = 10
-        self.target = (0, 0)
+        self.duration = 5
         self._elapsed = 0
-        # When finished, will run in reverse on next start
+
+        # Can be stopped before duration has passed
+        self.stoppable = True
         self.reversable = True
+        # Keeps running until explicitly stopped
+        # Implies reversable
+        self.continuous = False
 
     def start(self):
-        movement = self.entity.component(Movement)
-        self._elapsed = 0
-        px, py = self.entity.rect.x, self.entity.rect.y
+        if self._elapsed >= self.duration:
+            self._elapsed = 0
         dx, dy = self.move_by
-        self.target = (px+dx, py+dy)
         vx = dx/self.duration
         vy = dy/self.duration
-        movement.velocity = [vx, vy]
+        self.movement.velocity = [vx, vy]
 
     def stop(self):
-        self.entity.component(Movement).velocity = [0, 0]
-        self.reverse()
-
-    def state(self):
-        # State is either on or off, true/false, 1/0
-        m = self.entity.component(Movement)
-        return m.velocity[0] or m.velocity[1]
+        if self._elapsed >= self.duration:
+            if self.reversable:
+                self.reverse()
+            self.movement.velocity = [0, 0]
+        elif self.stoppable:
+            self.movement.velocity = [0, 0]
 
     def reverse(self):
-        if self.reversable:
-            self.move_by = -self.move_by[0], -self.move_by[1]
+        self.move_by = -self.move_by[0], -self.move_by[1]
+
+    def is_running(self):
+        return self.movement.velocity[0] or self.movement.velocity[1]
 
     def update(self, dt):
-        if self.state():
+        if self.is_running():
             self._elapsed += dt
-            if  self._elapsed >= self.duration:
-                self.stop()
+            if self._elapsed >= self.duration:
+                if self.continuous:
+                    self.reverse()
+                    self.start()
+                else:
+                    self.stop()
 
 
 class KeyboardController(Controller):
@@ -119,10 +125,13 @@ class KeyboardController(Controller):
 
     def do_movement(self, entity, pressed):
         m = entity.components[Movement]
+        d = entity.components[Display]
         if self.map['left'].intersection(pressed):
             m.walk(-1)
+            d.set_image('left')
         elif self.map['right'].intersection(pressed):
             m.walk(1)
+            d.set_image('right')
         else:
             m.end_walk()
         if self.map['jump'].intersection(pressed):
@@ -170,7 +179,7 @@ class Usable(Component):
 
     def use(self, used_by):
         if self.can_use(used_by):
-            if self.controlled_component.state():
+            if self.controlled_component.is_running():
                 self.controlled_component.stop()
             else:
                 self.controlled_component.start()
@@ -239,9 +248,17 @@ class Display(Component):
         """
         super(self.__class__, self).__init__()
         self.images = images
+        for k, v in self.images.items():
+            self.add_image(k, v)
 
     def set_image(self, name):
         self.entity.image = self.images[name]
+
+    def add_image(self, key, value):
+        if isinstance(value, basestring):
+            value = pyglet.resource.image(value)
+        self.images[key] = value
+
 
 
 class Health(Component):
@@ -401,23 +418,7 @@ class PlayerMovement(Movement):
         super(self.__class__, self).update(dt)
 
 
-class Pickupable(Component):
-    def __init__(self, name=''):
-        super(Pickupable, self).__init__(self)
-        self.name = name
 
-    def pick_up(self, picked_up_by):
-        i = picked_up_by.component(Inventory)
-        i.add(self)
-
-
-class Inventory(Component):
-    def __init__(self):
-        super(Inventory, self).__init__(self)
-        self.items = []
-
-    def add(self, pickup):
-        self.items.append(pickup)
 
 
 class Collisions(Component):
@@ -464,3 +465,22 @@ class Gravity(Component):
     def update(self, dt):
         # Gravity amount updated every frame gravity*time
         self.amount = config.GRAVITY*dt
+
+
+class Pickupable(Component):
+    def __init__(self, name=''):
+        super(Pickupable, self).__init__(self)
+        self.name = name
+
+    def pick_up(self, picked_up_by):
+        i = picked_up_by.component(Inventory)
+        i.add(self)
+
+
+class Inventory(Component):
+    def __init__(self):
+        super(Inventory, self).__init__(self)
+        self.items = []
+
+    def add(self, pickup):
+        self.items.append(pickup)

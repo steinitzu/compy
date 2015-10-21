@@ -2,6 +2,7 @@ import os
 
 import cocos
 from cocos.collision_model import CollisionManagerGrid, CollisionManagerBruteForce
+from cocos import layer
 
 import pyglet
 
@@ -23,7 +24,13 @@ class Level0(cocos.layer.Layer):
         self.collidables = CollisionManagerGrid(
             0, self.width, 0, self.height,
             256, 256)
-        #self.collidables = CollisionManagerBruteForce()
+
+        self.scroller = layer.scrolling.ScrollableLayer()
+        self.scroller.px_width, self.scroller.px_height = (
+             self.width, self.height)
+        self.scroll_man = layer.scrolling.ScrollingManager()
+        self.scroll_man.add(self.scroller)
+        self.add(self.scroll_man)
 
         self.platforms = self.build_platforms()
         self.player = self.build_player()
@@ -35,10 +42,10 @@ class Level0(cocos.layer.Layer):
         self.player.rect.y = 500
         self.schedule(self.update)
 
-        self.add(self.player, z=2)
+        self.scroller.add(self.player, z=2)
 
         for p in self.platforms:
-            self.add(p, z=1)
+            self.scroller.add(p, z=1)
 
     def build_platforms(self):
         platforms = []
@@ -98,10 +105,10 @@ class Level0(cocos.layer.Layer):
         collisions = Collisions(self.collidables)
         #collisions.solid_edges = ['top']
         collisions.no_handlers = True
-        automove = AutoMoveController()
+        movement = Movement()
+        automove = ElevatorController(movement)
         automove.move_by = 300, 200
         automove.duration = 4
-        movement = Movement()
         e = Entity(img, width_multi=1, height_multi=1)
         e.add_components(display, collisions, automove, movement)
         e.rect.left = 400
@@ -132,10 +139,10 @@ class Level0(cocos.layer.Layer):
         collisions = Collisions(self.collidables)
         #collisions.solid_edges = ['top']
         collisions.no_handlers = True
-        automove = AutoMoveController()
-        automove.move_by = 300, 0
-        automove.duration = 4
         movement = Movement()
+        automove = ElevatorController(movement)
+        automove.move_by = 300, 0
+        automove.duration = 1
         e = Entity(img, width_multi=1, height_multi=1)
         e.add_components(display, collisions, automove, movement)
         e.rect.left = 800
@@ -158,6 +165,41 @@ class Level0(cocos.layer.Layer):
         switch.rect.x, switch.rect.bottom = (800, 480)
         switch.bound_to = e
         platforms.append(switch)
+
+
+        # Moving platform3
+        img = 'greyplatform256x24.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        #collisions.solid_edges = ['top']
+        collisions.no_handlers = True
+        movement = Movement()
+        automove = ElevatorController(movement)
+        automove.move_by = 0, 500
+        automove.duration = 2
+        e = Entity(img, width_multi=1, height_multi=1)
+        e.add_components(display, collisions, automove, movement)
+        e.rect.left = 1200
+        e.rect.top = 360
+        platforms.append(e)
+
+
+        img = 'switch32x32.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        collisions.solid_edges = []
+        collisions.no_handlers = True
+        usable = Usable(automove)
+        team = Team('humans')
+        switch = Entity(img)
+        switch.add_components(display,
+                              collisions,
+                              usable,
+                              team)
+        switch.rect.x, switch.rect.bottom = (1200, 400)
+        switch.bound_to = e
+        platforms.append(switch)
+
         return platforms
 
     def build_player(self):
@@ -165,7 +207,7 @@ class Level0(cocos.layer.Layer):
         leftimg = 'ballman72x72left.png'
         display = Display({'default': rightimg,
                            'right': rightimg,
-                           'leftl': leftimg})
+                           'left': leftimg})
         # Always add controller before movement
         # Or won't be able to jump
         keyboard = KeyboardController()
@@ -196,7 +238,7 @@ class Level0(cocos.layer.Layer):
         # self.collidables.clear()
         # for c in cols:
         #     self.collidables.add(c)
-        log.info(self.player.rect.right)
+        self.scroll_man.set_focus(self.player.x, self.player.y)
 
 cocos.director.director.init(width=1920, height=1080,
                              caption='Compy',
