@@ -1,7 +1,7 @@
 import os
 
 import cocos
-from cocos.collision_model import CollisionManagerGrid
+from cocos.collision_model import CollisionManagerGrid, CollisionManagerBruteForce
 
 import pyglet
 
@@ -22,7 +22,8 @@ class Level0(cocos.layer.Layer):
         self.height = 2048
         self.collidables = CollisionManagerGrid(
             0, self.width, 0, self.height,
-            24, 24)
+            256, 256)
+        #self.collidables = CollisionManagerBruteForce()
 
         self.platforms = self.build_platforms()
         self.player = self.build_player()
@@ -32,13 +33,12 @@ class Level0(cocos.layer.Layer):
         self.systems_manager.add_entities(self.player)
         # self.player.rect.x = 200
         self.player.rect.y = 500
+        self.schedule(self.update)
 
         self.add(self.player, z=2)
 
         for p in self.platforms:
             self.add(p, z=1)
-
-        self.schedule(self.update)
 
     def build_platforms(self):
         platforms = []
@@ -47,7 +47,7 @@ class Level0(cocos.layer.Layer):
             img = 'greyplatform256x24.png'
             display = Display({'default': img})
             collisions = Collisions(self.collidables)
-            e = Entity(img, width_multi=1, height_multi=1)
+            e = Entity(img, width_multi=1, height_multi=1, static=True)
             e.add_components(display, collisions)
             platforms.append(e)
             e.rect.left = xpos
@@ -57,7 +57,7 @@ class Level0(cocos.layer.Layer):
         img = 'greyplatform256x24.png'
         display = Display({'default': img})
         collisions = Collisions(self.collidables)
-        e = Entity(img, width_multi=1, height_multi=1)
+        e = Entity(img, width_multi=1, height_multi=1, static=True)
         e.add_components(display, collisions)
         platforms.append(e)
         e.rect.left = 0
@@ -66,7 +66,7 @@ class Level0(cocos.layer.Layer):
         img = 'greyplatform256x24.png'
         display = Display({'default': img})
         collisions = Collisions(self.collidables)
-        e = Entity(img, width_multi=1, height_multi=1)
+        e = Entity(img, width_multi=1, height_multi=1, static=True)
         e.add_components(display, collisions)
         platforms.append(e)
         e.rect.right = self.width
@@ -76,7 +76,7 @@ class Level0(cocos.layer.Layer):
         display = Display({'default': img})
         collisions = Collisions(self.collidables)
         collisions.solid_edges = ['top']
-        e = Entity(img, width_multi=1, height_multi=1)
+        e = Entity(img, width_multi=1, height_multi=1, static=True)
         e.add_components(display, collisions)
         platforms.append(e)
         e.rect.left = 400
@@ -86,7 +86,7 @@ class Level0(cocos.layer.Layer):
         img = 'greyplatform256x24.png'
         display = Display({'default': img})
         collisions = Collisions(self.collidables)
-        e = Entity(img, width_multi=1, height_multi=1)
+        e = Entity(img, width_multi=1, height_multi=1, static=True)
         e.add_components(display, collisions)
         platforms.append(e)
         e.rect.left = 800
@@ -97,13 +97,13 @@ class Level0(cocos.layer.Layer):
         display = Display({'default': img})
         collisions = Collisions(self.collidables)
         #collisions.solid_edges = ['top']
+        collisions.no_handlers = True
         automove = AutoMoveController()
         automove.move_by = 300, 200
         automove.duration = 4
         movement = Movement()
-        push = Push()
         e = Entity(img, width_multi=1, height_multi=1)
-        e.add_components(display, collisions, automove, movement, push)
+        e.add_components(display, collisions, automove, movement)
         e.rect.left = 400
         e.rect.bottom = 324
         platforms.append(e)
@@ -122,6 +122,40 @@ class Level0(cocos.layer.Layer):
                               usable,
                               team)
         switch.rect.x, switch.rect.bottom = (400, 380)
+        switch.bound_to = e
+        platforms.append(switch)
+
+
+        # Moving platform2
+        img = 'greyplatform256x24.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        #collisions.solid_edges = ['top']
+        collisions.no_handlers = True
+        automove = AutoMoveController()
+        automove.move_by = 300, 0
+        automove.duration = 4
+        movement = Movement()
+        e = Entity(img, width_multi=1, height_multi=1)
+        e.add_components(display, collisions, automove, movement)
+        e.rect.left = 800
+        e.rect.bottom = 440
+        platforms.append(e)
+
+
+        img = 'switch32x32.png'
+        display = Display({'default': img})
+        collisions = Collisions(self.collidables)
+        collisions.solid_edges = []
+        collisions.no_handlers = True
+        usable = Usable(automove)
+        team = Team('humans')
+        switch = Entity(img)
+        switch.add_components(display,
+                              collisions,
+                              usable,
+                              team)
+        switch.rect.x, switch.rect.bottom = (800, 480)
         switch.bound_to = e
         platforms.append(switch)
         return platforms
@@ -156,11 +190,13 @@ class Level0(cocos.layer.Layer):
 
     def update(self, dt):
         # TODO: Update systems and components here
+        # dt = 1.0/340
         self.systems_manager.update(dt)
-        cols = self.collidables.known_objs()
-        self.collidables.clear()
-        for c in cols:
-            self.collidables.add(c)
+        # cols = self.collidables.known_objs()
+        # self.collidables.clear()
+        # for c in cols:
+        #     self.collidables.add(c)
+        log.info(self.player.rect.right)
 
 cocos.director.director.init(width=1920, height=1080,
                              caption='Compy',

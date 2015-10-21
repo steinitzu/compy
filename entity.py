@@ -18,13 +18,18 @@ class BoundRect(Rect):
 
     def __init__(self, *args, **kwargs):
         self.sprite = kwargs.pop('sprite')
+        self.static = kwargs.pop('static', False)
         super(BoundRect, self).__init__(*args, **kwargs)
         # Old rect, holds position of object before movement
         self.old = Rect(self.x, self.y, self.width, self.height)
 
     def _set_property(self, name, value):
         # Set value of old to current value
-        setattr(self.old, name, getattr(self, name))
+        if self.static:
+            old_val = value
+        else:
+            old_val = getattr(self, name)
+        setattr(self.old, name, old_val)
         object.__setattr__(self, name, value)
         self.sprite.position = self.center
         try:
@@ -55,7 +60,7 @@ class Entity(Sprite):
     The rect is aligned with the collision shape.
     """
 
-    def __init__(self, image, width_multi=1, height_multi=1):
+    def __init__(self, image, width_multi=1, height_multi=1, static=False):
         super(self.__class__, self).__init__(image)
         # self.cshape = collision_model.CircleShape(self.position,
         #                                           self.height/2)
@@ -66,7 +71,7 @@ class Entity(Sprite):
                                                   box_height/2)
         self.schedule(self.update)
 
-        self.rect = self.get_rect()
+        self.rect = self.get_rect(static=static)
         self.rect.width = int(self.width*width_multi)
         self.rect.height = int(self.height*height_multi)
 
@@ -102,14 +107,15 @@ class Entity(Sprite):
         self.rect.x += delta_pos[0]
         self.rect.y += delta_pos[1]
 
-    def get_rect(self):
+    def get_rect(self, static=False):
         """
         Overriden to return a BoundRect insted of cocos.rect.Rect
         """
         x, y = self.position
         x -= self.image_anchor_x
         y -= self.image_anchor_y
-        return BoundRect(x, y, self.width, self.height, sprite=self)
+        return BoundRect(x, y, self.width, self.height, sprite=self,
+                         static=static)
 
 
 class Player(Entity):

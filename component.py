@@ -401,6 +401,25 @@ class PlayerMovement(Movement):
         super(self.__class__, self).update(dt)
 
 
+class Pickupable(Component):
+    def __init__(self, name=''):
+        super(Pickupable, self).__init__(self)
+        self.name = name
+
+    def pick_up(self, picked_up_by):
+        i = picked_up_by.component(Inventory)
+        i.add(self)
+
+
+class Inventory(Component):
+    def __init__(self):
+        super(Inventory, self).__init__(self)
+        self.items = []
+
+    def add(self, pickup):
+        self.items.append(pickup)
+
+
 class Collisions(Component):
     def __init__(self, collidables):
         super(self.__class__, self).__init__()

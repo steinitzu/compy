@@ -89,6 +89,10 @@ class CollisionSystem(System):
         if not self.handlers:
             # No collision handlers, move along
             return
+        cobs = self.component.collidables.known_objs()
+        self.component.collidables.clear()
+        for c in cobs:
+            self.component.collidables.add(c)
         for ob in self.component.get_colliding():
             self.handle_collision(ob, axis=axis)
 
@@ -97,79 +101,108 @@ class CollisionSystem(System):
             h(self.entity, colliding_object, axis=axis)
 
     def correct_position(self, entity, colliding_object, axis='x'):
-        """
-        This handler is for moving entities.
-        When entity collides with object, it's position will be corrected
-        so that it is no longer colliding.
-        """
         solid_edges = colliding_object.component(Collisions).solid_edges
         movement = entity.component(Movement)
         rect = entity.rect
-        # Axis can be X or Y
+        cob = colliding_object
+
+        goingleft = entity.rect.x < entity.rect.old.x
+        goingright = entity.rect.x > entity.rect.old.x
+        goingup = entity.rect.y > entity.rect.old.y
+        goingdown = entity.rect.y < entity.rect.old.y
+        notmoving = (not goingleft and not goingright
+                     and not goingup and not goingdown)
+
+        cobgoingleft = cob.rect.x < cob.rect.old.x
+        cobgoingright = cob.rect.x > cob.rect.old.x
+        cobgoingup = cob.rect.y > cob.rect.old.y
+        cobgoingdown = cob.rect.y < cob.rect.old.y
+        cobnotmoving = (not cobgoingleft and not cobgoingright
+                     and not cobgoingup and not cobgoingdown)
+        cobmovingx = cobgoingleft or cobgoingright
+        cobmovingy = cobgoingup or cobgoingdown
+
+        # TODO: handle this shit later
+
+        def stop_movement(m, i):
+            m.velocity[i] = 0
+            m.acceleration[i] = 0
 
         if axis == 'x':
-            if rect.x > rect.old.x:
-                # moving right
+            log.info('Correcting X axis')
+            if goingright:
+                log.info('going right')
+                log.info('right:%s, old.right:%s',
+                         entity.rect.right, entity.rect.old.right)
                 if 'left' not in solid_edges:
                     return
-                log.info('Rect.x: %s, old.x: %s, right: %s, oldright: %s',
-                         rect.x, rect.old.x, rect.right, rect.old.right)
-                log.info('rect width: %s, old width: %s', rect.width, rect.old.width)
-                if entity.rect.old.right > colliding_object.rect.left+5:
+                if cobmovingx:
                     return
-                try:
-                    # To detect moving platforms going up
-                    if colliding_object.component(Movement).velocity[1] > 0:
-                        return
-                except KeyError:
-                    pass
-                entity.rect.right = colliding_object.rect.left
-                movement.velocity[0] = 0
-                movement.acceleration[0] = 0
-            elif rect.x < rect.old.x:
-                # moving left
+                entity.rect.right = cob.rect.left
+                stop_movement(movement, 0)
+            elif goingleft:
+                log.info('going left')
                 if 'right' not in solid_edges:
                     return
-                if entity.rect.old.left < colliding_object.rect.right:
+                if cobmovingx:
                     return
-                try:
-                    if colliding_object.component(Movement).velocity[1] > 0:
-                        return
-                except KeyError:
-                    pass
-                entity.rect.left = colliding_object.rect.right
-                movement.velocity[0] = 0
-                movement.acceleration[0] = 0
+                entity.rect.left = cob.rect.right
+                stop_movement(movement, 0)
+            elif cobgoingleft:
+                log.info('cob going left')
+                if 'left' not in solid_edges:
+                    return
+                # if entity.rect.old.right > cob.rect.left:
+                #     return
+                # dx = cob.rect.x - cob.rect.old.x
+                # entity.rect.left += dx
+                stop_movement(movement, 0)
+            elif cobgoingright:
+                log.info('cob going right')
+                if 'right' not in solid_edges:
+                    return
+                # if entity.rect.old.left < cob.rect.right:
+                #     return
+                # dx = cob.rect.x - cob.rect.old.x
+                # entity.rect.left += dx
+                #entity.rect.left = cob.rect.right
+                stop_movement(movement, 0)
         elif axis == 'y':
-            if rect.y > rect.old.y:
-                # Moving up
+            log.info('Correcting Y axis')
+            if goingup:
+                log.info('going up')
                 if 'bottom' not in solid_edges:
                     return
-                if entity.rect.old.top > colliding_object.rect.bottom:
-                      return
-                entity.rect.top = colliding_object.rect.bottom
-                movement.velocity[1] = 0
-                movement.acceleration[1] = 0
-            elif rect.y < rect.old.y:
+                if entity.rect.old.top > cob.rect.bottom:
+                    return
+                entity.rect.top = cob.rect.bottom
+                stop_movement(movement, 1)
+            elif goingdown:
+                log.info('going down')
                 if 'top' not in solid_edges:
                     return
-                if entity.rect.old.bottom < colliding_object.rect.top:
+                if entity.rect.old.bottom < cob.rect.top:
+                    if (entity.rect.old.bottom >= cob.rect.old.top
+                        and cobmovingy):
+                        pass
+                    else:
+                        return
+                dx = cob.rect.x - cob.rect.old.x
+                entity.rect.left += dx
+                entity.rect.bottom = cob.rect.top
+                stop_movement(movement, 1)
+            elif cobgoingdown:
+                log.info('cob going down')
+                if 'bottom' not in solid_edges:
                     return
-                if (Movement in colliding_object.components
-                    and colliding_object.rect.x != colliding_object.rect.old.x):
-                    # FUUUUUUUUUUUUUUUUUU
-                    dx = colliding_object.rect.x - colliding_object.rect.old.x
-                    entity.rect.x += dx
-                # if (entity.rect.old.bottom < colliding_object.rect.top
-                #     and (colliding_object.rect.old.top
-                #          >= colliding_object.rect.top)):
-                    # Seconds contition is for moving platforms
-                    # going up (elevators)
-                    #return
-                entity.rect.bottom = colliding_object.rect.top
-                movement.velocity[1] = 0
-                movement.acceleration[1] = 0
-
+                entity.rect.top = cob.rect.bottom
+                stop_movement(movement, 1)
+            elif cobgoingup:
+                log.info('cob going up')
+                if 'top' not in solid_edges:
+                    return
+                entity.rect.bottom = cob.rect.top
+                stop_movement(movement, 1)
 
     def deal_damage(self, entity, colliding_object, axis=None):
         """
