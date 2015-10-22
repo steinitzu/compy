@@ -1,4 +1,5 @@
 import logging
+import math
 
 from cocos.director import director
 from cocos.euclid import Point2
@@ -8,6 +9,7 @@ from pyglet.window.key import KeyStateHandler
 import pyglet
 
 import config
+from util import distance
 
 log = logging.getLogger('compy')
 
@@ -50,7 +52,7 @@ class ElevatorController(Component):
     """
     Controls a Movement component.
     """
-    def __init__(self, movement, move_by=(0, 0), duration=5):
+    def __init__(self, movement=None, move_by=(0, 0), duration=5):
         super(ElevatorController, self).__init__()
         self.movement = movement
         self.move_by = (0, 0)
@@ -97,6 +99,50 @@ class ElevatorController(Component):
                     self.stop()
 
 
+class BulletController(ElevatorController):
+    """
+    Controller that moves entity to a point at a given velocity.
+    """
+    def __init__(self, movement=None, target_point=(0, 0), velocity=1000):
+        super(BulletController, self).__init__(movement)
+        self.reversable = False
+        self.continuous = False
+        self._velocity = velocity
+        self._target_point = target_point
+
+    def set_velocity(self, value):
+        pos = self.entity.rect.x, self.entity.rect.y
+        d = distance(self.target_point, pos)
+        self.duration = d/value
+        self._velocity = value
+
+    velocity = property(lambda self: self._velocity, set_velocity)
+
+    def set_target_point(self, value):
+        dx = value[0] - self.entity.rect.x
+        dy = value[1] - self.entity.rect.y
+        self.move_by = (dx, dy)
+        self._target_point = value
+        # Causes duration to update with new distance
+        self.velocity = self._velocity
+
+    target_point = property(lambda self:
+                            self._target_point, set_target_point)
+
+    def on_add(self):
+        self.target_point = self._target_point
+
+    # start method is same elevator_controller
+
+    def stop(self):
+        self.movement.velocity = [0, 0]
+        self.entity.kill()
+
+    # Update same as elevatorcontroller
+
+
+
+
 class KeyboardController(Controller):
     def __init__(self):
         super(KeyboardController, self).__init__()
@@ -110,6 +156,7 @@ class KeyboardController(Controller):
             'down': {keycode.DOWN},
             'up': {keycode.UP},
             'use': {keycode.E},
+            'attack': {keycode.A},
             }
 
     def on_key_press(self, key, modifiers):
@@ -126,14 +173,29 @@ class KeyboardController(Controller):
     def do_movement(self, entity, pressed):
         m = entity.components[Movement]
         d = entity.components[Display]
+        weapon = entity.component(Inventory).equipped
         if self.map['left'].intersection(pressed):
             m.walk(-1)
             d.set_image('left')
+            if weapon:
+                weapon.facing[0] = -1
         elif self.map['right'].intersection(pressed):
             m.walk(1)
             d.set_image('right')
+            if weapon:
+                weapon.facing[0] = 1
         else:
             m.end_walk()
+            if weapon:
+                weapon.facing[0] = 0
+        if self.map['up'].intersection(pressed):
+            if weapon:
+                weapon.facing[1] = 1
+        elif self.map['down'].intersection(pressed):
+            if weapon:
+                weapon.facing[1] = -1
+        else:
+            weapon.facing[1] = 0
         if self.map['jump'].intersection(pressed):
             m.jump()
         else:
@@ -146,12 +208,34 @@ class KeyboardController(Controller):
             for k in self.map['use']:
                 pressed.discard(k)
 
+    def do_attack(self, entity, pressed):
+        weapon = entity.component(Inventory).equipped
+        if not weapon:
+            return
+        if self.map['attack'].intersection(pressed):
+            log.info('Attacking')
+            weapon.perform_attack()
+            entity.component(Movement).end_walk()
+            for k in self.map['attack']:
+                pressed.discard(k)
+        else:
+            weapon.end_attack()
+
     def update(self, dt):
         p = self.entity
         pressed = self.pressed
         # Will error if no movement component
         self.do_movement(p, pressed)
         self.do_use(p, pressed)
+        self.do_attack(p, pressed)
+
+
+class Fighting(Component):
+    """
+    A flag for systems manager, tells it to attach AttackSystem.
+    """
+    def __init__(self):
+        super(Fighting, self).__init__()
 
 
 class Usable(Component):
@@ -260,7 +344,6 @@ class Display(Component):
         self.images[key] = value
 
 
-
 class Health(Component):
     def __init__(self):
         super(Health, self).__init__()
@@ -295,17 +378,17 @@ class Weapon(Component):
     # When a player changes weapons, just swap out his Weapon component
     # Keep a second list of components not equipped
     def __init__(self):
-        super(self.__class__, self).__init__()
+        super(Weapon, self).__init__()
+        # X, Y axis where weapon is being aimed
+        self.facing = [0, 0]
+        self.components = []
+        self.attacking = True
 
-    def get_components(self):
-        """
-        Return a list of components
-        which will be used to create an attack entity.
-        Override this method in subclass.
-        """
-        team = self.entity.components.get(Team, None)
-        teamname = team.name if team else ''
-        return [Team(teamname)]
+    def perform_attack(self):
+        self.attacking = True
+
+    def end_attack(self):
+        self.attacking = False
 
 
 class Fist(Weapon):
@@ -314,27 +397,31 @@ class Fist(Weapon):
         self.add_as = Weapon
         self.damage = damage
 
-    def get_components(self):
-        base = super(self.__class__, self).get_components()
-
-        return [Hurt(self.damage),
-                Push(),
-                Collisions()] + base
-
 
 class Pistol(Weapon):
     def __init__(self, damage=10):
         super(self.__class__, self).__init__()
         self.add_as = Weapon
         self.damage = damage
-        # When a bullet goes off screen, delete it
+        self.range = 1000
 
-    def get_components(self):
-        # Get the components for a bullet
-        base = super(self.__class__, self).__init__()
-        return [Hurt(self.damage),
-                Collisions(),
-                Movement()] + base
+        # Components for bullet
+        self.components = [
+            Hurt,
+            Collisions,
+            Movement,
+            BulletController]
+
+    def fire(self, bullet):
+        bc = bullet.component(BulletController)
+        bc.movement = bullet.component(Movement)
+        arange = self.range
+        degrees = math.atan2(self.facing[1], self.facing[0])*180/math.pi
+        rads = degrees * (math.pi/180)
+        endpoint = (self.entity.rect.x+math.cos(rads)*arange,
+                    self.entity.rect.y+math.sin(rads)*arange)
+        bc.target_point = endpoint
+        bc.start()
 
 
 class Push(Component):
@@ -418,19 +505,20 @@ class PlayerMovement(Movement):
         super(self.__class__, self).update(dt)
 
 
-
-
-
 class Collisions(Component):
-    def __init__(self, collidables):
+    def __init__(self, collidables,
+                 solid_edges=('left', 'right', 'top', 'bottom'),
+                 no_handlers=False):
         super(self.__class__, self).__init__()
         # collidables should be a CollisionManager instance
         # Parent entity is added to collision manager when
         # this component is added to entity
         self.collidables = collidables
-        self.solid_edges = ['left', 'right', 'top', 'bottom']
+        self.solid_edges = solid_edges
+        # Can be collided with but handles none of its own collisions
+        self.no_handlers = no_handlers
         self.disabled = 0
-        self.no_handlers = False
+
 
     def get_colliding(self):
         if not self.disabled:
@@ -479,8 +567,13 @@ class Pickupable(Component):
 
 class Inventory(Component):
     def __init__(self):
-        super(Inventory, self).__init__(self)
+        super(Inventory, self).__init__()
         self.items = []
+        self.equipped = None
 
     def add(self, pickup):
         self.items.append(pickup)
+        pickup.entity = self.entity
+
+    def equip(self, index):
+        self.equipped = self.items[index]

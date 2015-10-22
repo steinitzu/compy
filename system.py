@@ -8,12 +8,15 @@ log = logging.getLogger('compy')
 
 
 class System(object):
+    def __init__(self, manager):
+        self.manager = manager
     def update(self, dt):
         pass
 
 
 class MovementSystem(System):
-    def __init__(self, movement_component):
+    def __init__(self, movement_component, manager):
+        super(MovementSystem, self).__init__(manager)
         self.movement = movement_component
         self.collisions = None
         self.gravity = None
@@ -31,7 +34,7 @@ class MovementSystem(System):
                             + ' components.Movement component.')
         self.collision_system = None
         if self.collisions:
-            self.collision_system = CollisionSystem(self.collisions)
+            self.collision_system = CollisionSystem(self.collisions, manager)
             self.collision_system.is_child = True
 
     def _move_horizontal(self, entity, movement, dt):
@@ -61,8 +64,8 @@ class MovementSystem(System):
 
 
 class CollisionSystem(System):
-    def __init__(self, collision_component):
-        super(self.__class__, self).__init__()
+    def __init__(self, collision_component, manager):
+        super(CollisionSystem, self).__init__(manager)
         self.entity = collision_component.entity
         entity = self.entity
         self.component = collision_component
@@ -129,11 +132,7 @@ class CollisionSystem(System):
             m.acceleration[i] = 0
 
         if axis == 'x':
-            log.info('Correcting X axis')
             if goingright:
-                log.info('going right')
-                log.info('right:%s, old.right:%s',
-                         entity.rect.right, entity.rect.old.right)
                 if 'left' not in solid_edges:
                     return
                 if cobmovingx:
@@ -146,7 +145,6 @@ class CollisionSystem(System):
                 entity.rect.right = cob.rect.left
                 stop_movement(movement, 0)
             elif goingleft:
-                log.info('going left')
                 if 'right' not in solid_edges:
                     return
                 if cobmovingx:
@@ -159,19 +157,15 @@ class CollisionSystem(System):
                 entity.rect.left = cob.rect.right
                 stop_movement(movement, 0)
             elif cobgoingleft:
-                log.info('cob going left')
                 if 'left' not in solid_edges:
                     return
                 stop_movement(movement, 0)
             elif cobgoingright:
-                log.info('cob going right')
                 if 'right' not in solid_edges:
                     return
                 stop_movement(movement, 0)
         elif axis == 'y':
-            log.info('Correcting Y axis')
             if goingup:
-                log.info('going up')
                 if 'bottom' not in solid_edges:
                     return
                 if entity.rect.old.top > cob.rect.bottom:
@@ -179,7 +173,6 @@ class CollisionSystem(System):
                 entity.rect.top = cob.rect.bottom
                 stop_movement(movement, 1)
             elif goingdown:
-                log.info('going down')
                 if 'top' not in solid_edges:
                     return
                 if entity.rect.old.bottom < cob.rect.top:
@@ -195,13 +188,11 @@ class CollisionSystem(System):
                 entity.rect.bottom = cob.rect.top
                 stop_movement(movement, 1)
             elif cobgoingdown:
-                log.info('cob going down')
                 if 'bottom' not in solid_edges:
                     return
                 entity.rect.top = cob.rect.bottom
                 stop_movement(movement, 1)
             elif cobgoingup:
-                log.info('cob going up')
                 if 'top' not in solid_edges:
                     return
                 entity.rect.bottom = cob.rect.top
@@ -212,7 +203,7 @@ class CollisionSystem(System):
         This handler deals damage to colliding object.
         This is for entities with a Hurt component (e.g. a bullet)
         """
-        base_damage = entity.components[Attack].damage
+        base_damage = entity.components[Hurt].damage
         try:
             if (entity.component(Team) != colliding_object.component(Team)
                 or config.TEAMKILL):
@@ -240,13 +231,51 @@ class CollisionSystem(System):
             self.handle_collisions()
 
 
+class AttackSystem(System):
+    def __init__(self, entity, collidables, manager):
+        super(AttackSystem, self).__init__(manager)
+        # Weapon entity
+        self.entity = entity
+        self.collidables = collidables
+
+    def attack(self, weapon):
+        attack_entity = Entity('ballman72x72.png')
+        entity = attack_entity
+        if Team in self.entity.components:
+            attack_entity.add_components(
+                Team(self.entity.component(Team).name))
+        for c_class in weapon.components:
+            if c_class == Collisions:
+                col = c_class(self.collidables)
+                col.solid_edges = ()
+                entity.add_components(col)
+            elif c_class == Hurt:
+                entity.add_components(c_class(weapon.damage))
+            else:
+                entity.add_components(c_class())
+        entity.rect.x, entity.rect.y = self.entity.rect.x, self.entity.rect.y
+        self.manager.add_entities(entity)
+        self.manager.layer.add(entity)
+        weapon.fire(entity)
+
+    def update(self, dt):
+        weapon = self.entity.component(Inventory).equipped
+        if not isinstance(weapon, Weapon):
+            return
+        if weapon and weapon.attacking:
+            self.attack(weapon)
+
+
 class SystemsManager(object):
     """
     One per level/scene.
     """
-    def __init__(self):
+    def __init__(self, collidables, layer):
         # Entity: [systems]
         self.systems = OrderedDict()
+        self.collidables = collidables
+        self.layer = layer
+        self.to_remove = []
 
     def add_entities(self, *entities):
         """
@@ -256,14 +285,26 @@ class SystemsManager(object):
         for entity in entities:
             systems = []
             if Movement in entity.components:
-                m = MovementSystem(entity.component(Movement))
+                m = MovementSystem(entity.component(Movement), self)
                 systems.append(m)
             elif Collisions in entity.components:
                 # Not moving, so we add collision system
                 # seperately
-                c = CollisionSystem(entity.component(Collisions))
+                c = CollisionSystem(entity.component(Collisions), self)
                 systems.append(c)
+            if Fighting in entity.components:
+                a = AttackSystem(entity, self.collidables, self)
+                systems.append(a)
+
             self.systems[entity] = systems
+            entity.systems_manager = self
+
+    def remove(self, entity):
+        """
+        Schedules an entity to be removed
+        from the system on next update cycle.
+        """
+        self.to_remove.append(entity)
 
     def update(self, dt):
         # Update all components and systems
@@ -272,30 +313,5 @@ class SystemsManager(object):
                 component.update(dt)
             for system in self.systems[entity]:
                 system.update(dt)
-
-
-class AttackSystem(System):
-    # Nah...
-
-    def __init__(self, fast=None, strong=None, ranged=None):
-        self.fast = fast
-        self.strong = strong
-        self.ranged = ranged
-
-    def build_ranged_attack(self):
-        if not self.ranged:
-            return
-        p = self.ranged.entity
-        e = Entity()
-        e.add_component(self.ranged)
-        e.add_component(Movement())
-        if self.ranged.push:
-            e.add_component(Push(strength=self.ranged.push))
-        try:
-            e.add_component(p.components[Team])
-        except KeyError:
-            pass
-        # TODO: calculate velocity based on angle
-        e.components[Movement].velocity = [self.ranged.travel_velocity, 0]
-        # Attach a movement system and add to world in caller
-        return e
+        while self.to_remove:
+            del self.systems[self.to_remove.pop()]

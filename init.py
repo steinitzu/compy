@@ -32,10 +32,12 @@ class Level0(cocos.layer.Layer):
         self.scroll_man.add(self.scroller)
         self.add(self.scroll_man)
 
+        self.systems_manager = SystemsManager(self.collidables, self.scroller)
+
         self.platforms = self.build_platforms()
         self.player = self.build_player()
 
-        self.systems_manager = SystemsManager()
+
         self.systems_manager.add_entities(*self.platforms)
         self.systems_manager.add_entities(self.player)
         # self.player.rect.x = 200
@@ -176,6 +178,7 @@ class Level0(cocos.layer.Layer):
         movement = Movement()
         automove = ElevatorController(movement)
         automove.move_by = 0, 500
+        automove.continuous = True
         automove.duration = 2
         e = Entity(img, width_multi=1, height_multi=1)
         e.add_components(display, collisions, automove, movement)
@@ -217,7 +220,9 @@ class Level0(cocos.layer.Layer):
         health = Health()
         gravity = Gravity()
         team = Team('humans')
+        inventory = Inventory()
         use = Use()
+        fighting = Fighting()
 
         e = Entity(rightimg, width_multi=0.8, height_multi=0.8)
         e.add_components(display,
@@ -227,7 +232,11 @@ class Level0(cocos.layer.Layer):
                          health,
                          gravity,
                          team,
-                         use)
+                         use,
+                         inventory,
+                         fighting)
+        inventory.add(Pistol())
+        inventory.equip(0)
         return e
 
     def update(self, dt):
@@ -239,6 +248,7 @@ class Level0(cocos.layer.Layer):
         # for c in cols:
         #     self.collidables.add(c)
         self.scroll_man.set_focus(self.player.x, self.player.y)
+
 
 cocos.director.director.init(width=1920, height=1080,
                              caption='Compy',

@@ -80,6 +80,7 @@ class Entity(Sprite):
         # This means whenever bound_to moves, this entity moves as well.
         # Only works one way
         self.bound_to = None
+        self.systems_manager = None
 
     def add_components(self, *components):
         for component in components:
@@ -116,6 +117,13 @@ class Entity(Sprite):
         y -= self.image_anchor_y
         return BoundRect(x, y, self.width, self.height, sprite=self,
                          static=static)
+
+    def kill(self):
+        super(Entity, self).kill()
+        try:
+            self.systems_manager.remove(self)
+        except AttributeError:
+            pass
 
 
 class Player(Entity):
