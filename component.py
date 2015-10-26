@@ -325,7 +325,7 @@ class PathFinding(Component):
 
 
 class Display(Component):
-    def __init__(self, images):
+    def __init__(self, images={}, z=1):
         """
         images should be a dict of pyglet images, or paths.
         {name: Image}
@@ -334,6 +334,7 @@ class Display(Component):
         self.images = images
         for k, v in self.images.items():
             self.add_image(k, v)
+        self.z = z
 
     def set_image(self, name):
         self.entity.image = self.images[name]
@@ -353,7 +354,14 @@ class Health(Component):
         return self.amount <= 0
 
     def take_damage(self, damage):
+        log.info('giving damage: %s', damage)
         self.amount -= damage
+        log.info('health after damage: %s', self.amount)
+
+
+    def update(self, dt):
+        if self.is_dead():
+            self.entity.kill()
 
 
 class Team(Component):
@@ -381,7 +389,7 @@ class Weapon(Component):
         super(Weapon, self).__init__()
         # X, Y axis where weapon is being aimed
         self.facing = [0, 0]
-        self.components = []
+        self.components = {}
         self.attacking = True
 
     def perform_attack(self):
@@ -404,13 +412,16 @@ class Pistol(Weapon):
         self.add_as = Weapon
         self.damage = damage
         self.range = 1000
+        self.velocity = 3000
 
-        # Components for bullet
-        self.components = [
-            Hurt,
-            Collisions,
-            Movement,
-            BulletController]
+        # Components for bullet and kwarg dict
+        self.components = {Hurt: {'damage': self.damage},
+                           Collisions: {},
+                           Movement: {},
+                           BulletController: {'velocity': self.velocity},
+                           Gravity: {},
+                           Display: {'images': {'default': 'ballman72x72.png'},
+                                     'z': 4}}
 
     def fire(self, bullet):
         bc = bullet.component(BulletController)

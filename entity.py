@@ -18,14 +18,16 @@ class BoundRect(Rect):
 
     def __init__(self, *args, **kwargs):
         self.sprite = kwargs.pop('sprite')
-        self.static = kwargs.pop('static', False)
+        #self.static = kwargs.pop('static', False)
         super(BoundRect, self).__init__(*args, **kwargs)
         # Old rect, holds position of object before movement
         self.old = Rect(self.x, self.y, self.width, self.height)
 
     def _set_property(self, name, value):
         # Set value of old to current value
-        if self.static:
+        if Movement not in self.sprite.components:
+            # Entity doesn't move, so old position should
+            # always be same as current
             old_val = value
         else:
             old_val = getattr(self, name)
@@ -60,7 +62,7 @@ class Entity(Sprite):
     The rect is aligned with the collision shape.
     """
 
-    def __init__(self, image, width_multi=1, height_multi=1, static=False):
+    def __init__(self, image, width_multi=1, height_multi=1):
         super(self.__class__, self).__init__(image)
         # self.cshape = collision_model.CircleShape(self.position,
         #                                           self.height/2)
@@ -71,7 +73,7 @@ class Entity(Sprite):
                                                   box_height/2)
         self.schedule(self.update)
 
-        self.rect = self.get_rect(static=static)
+        self.rect = self.get_rect()
         self.rect.width = int(self.width*width_multi)
         self.rect.height = int(self.height*height_multi)
 
@@ -108,15 +110,14 @@ class Entity(Sprite):
         self.rect.x += delta_pos[0]
         self.rect.y += delta_pos[1]
 
-    def get_rect(self, static=False):
+    def get_rect(self):
         """
         Overriden to return a BoundRect insted of cocos.rect.Rect
         """
         x, y = self.position
         x -= self.image_anchor_x
         y -= self.image_anchor_y
-        return BoundRect(x, y, self.width, self.height, sprite=self,
-                         static=static)
+        return BoundRect(x, y, self.width, self.height, sprite=self)
 
     def kill(self):
         super(Entity, self).kill()

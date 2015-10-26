@@ -36,18 +36,14 @@ class Level0(cocos.layer.Layer):
 
         self.platforms = self.build_platforms()
         self.player = self.build_player()
-
+        self.enemies = self.build_enemies()
 
         self.systems_manager.add_entities(*self.platforms)
         self.systems_manager.add_entities(self.player)
-        # self.player.rect.x = 200
+        self.systems_manager.add_entities(*self.enemies)
+
         self.player.rect.y = 500
         self.schedule(self.update)
-
-        self.scroller.add(self.player, z=2)
-
-        for p in self.platforms:
-            self.scroller.add(p, z=1)
 
     def build_platforms(self):
         platforms = []
@@ -56,7 +52,7 @@ class Level0(cocos.layer.Layer):
             img = 'greyplatform256x24.png'
             display = Display({'default': img})
             collisions = Collisions(self.collidables)
-            e = Entity(img, width_multi=1, height_multi=1, static=True)
+            e = Entity(img, width_multi=1, height_multi=1)
             e.add_components(display, collisions)
             platforms.append(e)
             e.rect.left = xpos
@@ -66,7 +62,7 @@ class Level0(cocos.layer.Layer):
         img = 'greyplatform256x24.png'
         display = Display({'default': img})
         collisions = Collisions(self.collidables)
-        e = Entity(img, width_multi=1, height_multi=1, static=True)
+        e = Entity(img, width_multi=1, height_multi=1)
         e.add_components(display, collisions)
         platforms.append(e)
         e.rect.left = 0
@@ -75,7 +71,7 @@ class Level0(cocos.layer.Layer):
         img = 'greyplatform256x24.png'
         display = Display({'default': img})
         collisions = Collisions(self.collidables)
-        e = Entity(img, width_multi=1, height_multi=1, static=True)
+        e = Entity(img, width_multi=1, height_multi=1)
         e.add_components(display, collisions)
         platforms.append(e)
         e.rect.right = self.width
@@ -85,7 +81,7 @@ class Level0(cocos.layer.Layer):
         display = Display({'default': img})
         collisions = Collisions(self.collidables)
         collisions.solid_edges = ['top']
-        e = Entity(img, width_multi=1, height_multi=1, static=True)
+        e = Entity(img, width_multi=1, height_multi=1)
         e.add_components(display, collisions)
         platforms.append(e)
         e.rect.left = 400
@@ -95,7 +91,7 @@ class Level0(cocos.layer.Layer):
         img = 'greyplatform256x24.png'
         display = Display({'default': img})
         collisions = Collisions(self.collidables)
-        e = Entity(img, width_multi=1, height_multi=1, static=True)
+        e = Entity(img, width_multi=1, height_multi=1)
         e.add_components(display, collisions)
         platforms.append(e)
         e.rect.left = 800
@@ -238,6 +234,22 @@ class Level0(cocos.layer.Layer):
         inventory.add(Pistol())
         inventory.equip(0)
         return e
+
+    def build_enemies(self):
+        collisions = Collisions(self.collidables)
+        collisions.solid_edges = []
+        health = Health()
+        team = Team('cpu')
+
+        img = {'left': 'evilballman72x72left.png',
+               'right': 'evilballman72x72.png',
+               'default': 'evilballman72x72.png'}
+        display = Display(img)
+        entity = Entity(img['default'], width_multi=0.8, height_multi=0.8)
+        entity.add_components(collisions, health, display, team)
+        entity.rect.x = 600
+        entity.rect.y = 400
+        return [entity]
 
     def update(self, dt):
         # TODO: Update systems and components here

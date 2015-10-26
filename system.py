@@ -207,7 +207,7 @@ class CollisionSystem(System):
         try:
             if (entity.component(Team) != colliding_object.component(Team)
                 or config.TEAMKILL):
-                colliding_object.health.take_damage(base_damage)
+                colliding_object.component(Health).take_damage(base_damage)
         except KeyError:
             return
 
@@ -244,15 +244,13 @@ class AttackSystem(System):
         if Team in self.entity.components:
             attack_entity.add_components(
                 Team(self.entity.component(Team).name))
-        for c_class in weapon.components:
+        for c_class, kwargs in weapon.components.items():
             if c_class == Collisions:
-                col = c_class(self.collidables)
+                col = c_class(self.collidables, **kwargs)
                 col.solid_edges = ()
                 entity.add_components(col)
-            elif c_class == Hurt:
-                entity.add_components(c_class(weapon.damage))
             else:
-                entity.add_components(c_class())
+                entity.add_components(c_class(**kwargs))
         entity.rect.x, entity.rect.y = self.entity.rect.x, self.entity.rect.y
         self.manager.add_entities(entity)
         self.manager.layer.add(entity)
@@ -275,7 +273,7 @@ class SystemsManager(object):
         self.systems = OrderedDict()
         self.collidables = collidables
         self.layer = layer
-        self.to_remove = []
+        self.to_remove = set()
 
     def add_entities(self, *entities):
         """
@@ -295,7 +293,8 @@ class SystemsManager(object):
             if Fighting in entity.components:
                 a = AttackSystem(entity, self.collidables, self)
                 systems.append(a)
-
+            if Display in entity.components:
+                self.layer.add(entity, z=entity.component(Display).z)
             self.systems[entity] = systems
             entity.systems_manager = self
 
@@ -304,7 +303,7 @@ class SystemsManager(object):
         Schedules an entity to be removed
         from the system on next update cycle.
         """
-        self.to_remove.append(entity)
+        self.to_remove.add(entity)
 
     def update(self, dt):
         # Update all components and systems
