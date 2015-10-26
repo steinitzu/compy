@@ -3,6 +3,7 @@ import math
 
 from cocos.director import director
 from cocos.euclid import Point2
+from cocos.sprite import Sprite
 
 from pyglet.window import key as keycode
 from pyglet.window.key import KeyStateHandler
@@ -174,28 +175,37 @@ class KeyboardController(Controller):
         m = entity.components[Movement]
         d = entity.components[Display]
         weapon = entity.component(Inventory).equipped
+        up = self.map['up'].intersection(pressed)
+        down = self.map['down'].intersection(pressed)
+        waxis = [0, 0]
         if self.map['left'].intersection(pressed):
             m.walk(-1)
             d.set_image('left')
             if weapon:
-                weapon.facing[0] = -1
+                waxis[0] = -1
         elif self.map['right'].intersection(pressed):
             m.walk(1)
             d.set_image('right')
             if weapon:
-                weapon.facing[0] = 1
+                waxis[0] = 1
         else:
             m.end_walk()
             if weapon:
-                weapon.facing[0] = 0
+                if up or down:
+                    waxis[0] = 0
+                else:
+                    waxis[0] = m.direction
         if self.map['up'].intersection(pressed):
             if weapon:
-                weapon.facing[1] = 1
+                waxis[1] = 1
         elif self.map['down'].intersection(pressed):
             if weapon:
-                weapon.facing[1] = -1
+                waxis[1] = -1
         else:
-            weapon.facing[1] = 0
+            waxis[1] = 0
+
+        if weapon:
+            weapon.facing = waxis
         if self.map['jump'].intersection(pressed):
             m.jump()
         else:
@@ -214,8 +224,8 @@ class KeyboardController(Controller):
             return
         if self.map['attack'].intersection(pressed):
             log.info('Attacking')
-            weapon.perform_attack()
             entity.component(Movement).end_walk()
+            weapon.perform_attack()
             for k in self.map['attack']:
                 pressed.discard(k)
         else:
@@ -335,14 +345,179 @@ class Display(Component):
         for k, v in self.images.items():
             self.add_image(k, v)
         self.z = z
+        self.sprite = Sprite(self.images['default'])
 
     def set_image(self, name):
+        self.sprite.image = self.images[name]
+
+    def old_set_image(self, name):
         self.entity.image = self.images[name]
 
     def add_image(self, key, value):
         if isinstance(value, basestring):
             value = pyglet.resource.image(value)
         self.images[key] = value
+
+
+from cocos.rect import Rect
+class Spatial(Component):
+    """
+    Gives entity a rectangular area on screen.
+    Can either pass a Sprite object, in which case, the rectangle created
+    will use the width, height and position of the sprite.
+    If no sprite is passed, will use width and height keyword arguments.
+    width/height_multi arguments are multiplied by passed width and height
+    (e.g. if you want the occupied rectangle to be smaller or larger than
+    the actual sprite).
+
+    Position can be updated using any 'rect' supported properties.
+    If Entity has a Display component as well, its position is updated
+    accordingly any time Spatial position is changed.
+    Same applies to Collision components, cshape position will be updated
+    to reflect spatial changes.
+    """
+    def __init__(self, sprite=None, width=1, height=1,
+                 width_multi=1.0, height_multi=1.0):
+        super(Spatial, self).__init__()
+        self.width_multi, self.height_multi = width_multi, height_multi
+        self.rect = self.get_rect(sprite=sprite, width=width, height=height)
+        self.old = self.get_rect(sprite=sprite, width=width, height=height)
+
+    def get_rect(self, sprite=None, width=1, height=1):
+        if sprite:
+            x, y = sprite.position
+            x -= sprite.image_anchor_x
+            y -= sprite.image_anchor_x
+            bw, bh = sprite.width, sprite.height
+        else:
+            x = y = 0
+            bw, bh = width, height
+        return Rect(x, y,
+                    int(bw*self.width_multi),
+                    int(bh*self.height_multi))
+
+    def _set_property(self, name, value):
+        if not self.entity or Movement not in self.entity.components:
+            old_val = value
+        else:
+            old_val = getattr(self.rect, name)
+        setattr(self.old, name, old_val)
+        setattr(self.rect, name, value)
+        try:
+            s = self.entity.component(Display).sprite
+            s.position = self.rect.center
+        except:
+            # NO Display component, carry on
+            pass
+        try:
+            # Adjust collision shape accordingly
+            self.entity.component(Collisions).cshape.center = self.rect.center
+        except:
+            # No collisions
+            pass
+
+    def __setattr__(self, name, value):
+        posattrs = ('bottom', 'top', 'left', 'right',
+                    'center', 'midtop', 'midbottom',
+                    'midleft', 'midright', 'topleft', 'topright',
+                    'bottomleft', 'bottomright',
+                    'x', 'y')
+        if name in posattrs:
+            self._set_property(name, value)
+        elif name in ('width', 'height'):
+            setattr(self.old, name, value)
+            setattr(self.rect, name, value)
+        else:
+            object.__setattr__(self, name, value)
+
+    def __getattr__(self, name):
+        posattrs = ('bottom', 'top', 'left', 'right',
+                    'center', 'midtop', 'midbottom',
+                    'midleft', 'midright', 'topleft', 'topright',
+                    'bottomleft', 'bottomright',
+                    'x', 'y', 'position')
+        sattrs = ('width', 'height')
+        if name in posattrs + sattrs:
+            return getattr(self.rect, name)
+        return object.__getattr__(self, name)
+
+
+from cocos.collision_model import AARectShape
+class Collisions(Component):
+    def __init__(self, solid_edges=('left', 'right', 'top', 'bottom'),
+                 no_handlers=False):
+        super(Collisions, self).__init__()
+        self.solid_edges = solid_edges
+        self.no_handlers = no_handlers
+        self.cshape = None
+
+    def get_cshape(self):
+        # Depends on a Spatial component
+        sp = self.entity.component(Spatial)
+        cshape = AARectShape(sp.center, sp.width/2, sp.height/2)
+        return cshape
+
+    def on_add(self):
+        self.cshape = self.get_cshape()
+
+
+class Attached(Component):
+    """
+    Entity with this component is attached to a
+    given Spatial component.
+    That means, whenever the attached component moves,
+    this entity moves.
+    Requires Spatial
+    """
+    def __init__(self, to=None):
+        # Should be a Spatial component
+        self.attached_to = to
+
+    def update(self, dt):
+        target = self.attached_to
+        spatial = self.entity.component(Spatial)
+        delta_pos = (target.x - target.old.x,
+                     target.y - target.old.y)
+        spatial.x += delta_pos[0]
+        spatial.y += delta_pos[1]
+
+
+class old_Collisions(Component):
+    def __init__(self, collidables,
+                 solid_edges=('left', 'right', 'top', 'bottom'),
+                 no_handlers=False):
+        super(self.__class__, self).__init__()
+        # collidables should be a CollisionManager instance
+        # Parent entity is added to collision manager when
+        # this component is added to entity
+        self.collidables = collidables
+        self.solid_edges = solid_edges
+        # Can be collided with but handles none of its own collisions
+        self.no_handlers = no_handlers
+        self.disabled = 0
+
+
+    def get_colliding(self):
+        if not self.disabled:
+            return self.collidables.objs_colliding(self.entity)
+
+    def collides_with(self, other):
+        # Check one collision component against this one
+        return self.collidables.they_collide(
+            self.entity, other.entity)
+
+    def on_add(self):
+        self.collidables.add(self.entity)
+
+    def disable(self, frames=1):
+        # Disable collision checking for x frames
+        self.disabled = frames
+
+    def update(self, dt):
+        if self.disabled:
+            self.disabled -= 1
+
+
 
 
 class Health(Component):
@@ -516,40 +691,7 @@ class PlayerMovement(Movement):
         super(self.__class__, self).update(dt)
 
 
-class Collisions(Component):
-    def __init__(self, collidables,
-                 solid_edges=('left', 'right', 'top', 'bottom'),
-                 no_handlers=False):
-        super(self.__class__, self).__init__()
-        # collidables should be a CollisionManager instance
-        # Parent entity is added to collision manager when
-        # this component is added to entity
-        self.collidables = collidables
-        self.solid_edges = solid_edges
-        # Can be collided with but handles none of its own collisions
-        self.no_handlers = no_handlers
-        self.disabled = 0
 
-
-    def get_colliding(self):
-        if not self.disabled:
-            return self.collidables.objs_colliding(self.entity)
-
-    def collides_with(self, other):
-        # Check one collision component against this one
-        return self.collidables.they_collide(
-            self.entity, other.entity)
-
-    def on_add(self):
-        self.collidables.add(self.entity)
-
-    def disable(self, frames=1):
-        # Disable collision checking for x frames
-        self.disabled = frames
-
-    def update(self, dt):
-        if self.disabled:
-            self.disabled -= 1
 
 
 class Gravity(Component):

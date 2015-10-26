@@ -42,10 +42,48 @@ class Level0(cocos.layer.Layer):
         self.systems_manager.add_entities(self.player)
         self.systems_manager.add_entities(*self.enemies)
 
-        self.player.rect.y = 500
         self.schedule(self.update)
 
+    def build_player(self):
+        e = Entity()
+        rightimg = 'ballman72x72.png'
+        leftimg = 'ballman72x72left.png'
+
+        # Always add controller before movement
+        # Or won't be able to jump
+
+        display = Display({'default': rightimg,
+                     'right': rightimg,
+                     'left': leftimg})
+        spatial = Spatial(display.sprite,
+                          width_multi=0.8,
+                          height_multi=0.8)
+        collisions = Collisions(solid_edges=[])
+        keyboard = KeyboardController()
+        movement = PlayerMovement()
+        inventory = Inventory()
+        use = Use()
+        e.add_components(display, spatial, collisions,
+                         keyboard, movement, inventory, use, Gravity())
+        e.component(Spatial).center = (500,500)
+        return e
+
     def build_platforms(self):
+        display = Display({'default': 'greyplatform256x24.png'})
+        spatial = Spatial(display.sprite)
+        collisions = Collisions()
+        e = Entity(display, spatial, collisions)
+        spatial.center = (500, 300)
+        return [e]
+
+    def build_enemies(self):
+        return []
+
+
+
+
+
+    def _old_build_platforms(self):
         platforms = []
         xpos = 0
         for i in range(self.width/256):
@@ -201,7 +239,7 @@ class Level0(cocos.layer.Layer):
 
         return platforms
 
-    def build_player(self):
+    def _old_build_player(self):
         rightimg = 'ballman72x72.png'
         leftimg = 'ballman72x72left.png'
         display = Display({'default': rightimg,
@@ -235,7 +273,7 @@ class Level0(cocos.layer.Layer):
         inventory.equip(0)
         return e
 
-    def build_enemies(self):
+    def _old_build_enemies(self):
         collisions = Collisions(self.collidables)
         collisions.solid_edges = []
         health = Health()
@@ -259,7 +297,8 @@ class Level0(cocos.layer.Layer):
         # self.collidables.clear()
         # for c in cols:
         #     self.collidables.add(c)
-        self.scroll_man.set_focus(self.player.x, self.player.y)
+        sp = self.player.component(Spatial)
+        self.scroll_man.set_focus(sp.x, sp.y)
 
 
 cocos.director.director.init(width=1920, height=1080,

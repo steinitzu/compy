@@ -39,7 +39,7 @@ class MovementSystem(System):
 
     def _move_horizontal(self, entity, movement, dt):
         vx = movement.velocity[0]
-        entity.rect.x += vx * dt
+        entity.component(Spatial).x += vx * dt
         if self.collisions:
             self.collision_system.handle_collisions(axis='x')
 
@@ -49,7 +49,7 @@ class MovementSystem(System):
         except:
             pass
         vy = movement.velocity[1]
-        entity.rect.y += vy * dt
+        entity.component(Spatial).y += vy * dt
         if self.collisions:
             self.collision_system.handle_collisions(axis='y')
 
@@ -66,6 +66,7 @@ class MovementSystem(System):
 class CollisionSystem(System):
     def __init__(self, collision_component, manager):
         super(CollisionSystem, self).__init__(manager)
+        self.manager.collidables.add(collision_component)
         self.entity = collision_component.entity
         entity = self.entity
         self.component = collision_component
@@ -92,11 +93,11 @@ class CollisionSystem(System):
         if not self.handlers:
             # No collision handlers, move along
             return
-        cobs = self.component.collidables.known_objs()
-        self.component.collidables.clear()
+        cobs = self.manager.collidables.known_objs()
+        self.manager.collidables.clear()
         for c in cobs:
-            self.component.collidables.add(c)
-        for ob in self.component.get_colliding():
+            self.manager.collidables.add(c)
+        for ob in self.manager.collidables.objs_colliding(self.component):
             self.handle_collision(ob, axis=axis)
 
     def handle_collision(self, colliding_object, axis='x'):
@@ -104,22 +105,26 @@ class CollisionSystem(System):
             h(self.entity, colliding_object, axis=axis)
 
     def correct_position(self, entity, colliding_object, axis='x'):
-        solid_edges = colliding_object.component(Collisions).solid_edges
+        #solid_edges = colliding_object.component(Collisions).solid_edges
+        solid_edges = colliding_object.solid_edges
         movement = entity.component(Movement)
-        rect = entity.rect
+        rect = entity.component(Spatial)
+        entity_spatial = entity.component(Spatial)
         cob = colliding_object
 
-        goingleft = entity.rect.x < entity.rect.old.x
-        goingright = entity.rect.x > entity.rect.old.x
-        goingup = entity.rect.y > entity.rect.old.y
-        goingdown = entity.rect.y < entity.rect.old.y
+        goingleft = entity_spatial.x < entity_spatial.old.x
+        goingright = entity_spatial.x > entity_spatial.old.x
+        goingup = entity_spatial.y > entity_spatial.old.y
+        goingdown = entity_spatial.y < entity_spatial.old.y
         notmoving = (not goingleft and not goingright
                      and not goingup and not goingdown)
 
-        cobgoingleft = cob.rect.x < cob.rect.old.x
-        cobgoingright = cob.rect.x > cob.rect.old.x
-        cobgoingup = cob.rect.y > cob.rect.old.y
-        cobgoingdown = cob.rect.y < cob.rect.old.y
+        cob_spatial = cob.entity.component(Spatial)
+
+        cobgoingleft = cob_spatial.x < cob_spatial.old.x
+        cobgoingright = cob_spatial.x > cob_spatial.old.x
+        cobgoingup = cob_spatial.y > cob_spatial.old.y
+        cobgoingdown = cob_spatial.y < cob_spatial.old.y
         cobnotmoving = (not cobgoingleft and not cobgoingright
                      and not cobgoingup and not cobgoingdown)
         cobmovingx = cobgoingleft or cobgoingright
@@ -138,11 +143,11 @@ class CollisionSystem(System):
                 if cobmovingx:
                     return
                 if cobgoingup:
-                    if entity.rect.bottom >= cob.rect.old.top:
+                    if entity_spatial.bottom >= cob_spatial.old.top:
                         # Otherwise player will fall be warped off
                         # fast moving elevators
                         return
-                entity.rect.right = cob.rect.left
+                entity_spatial.right = cob_spatial.left
                 stop_movement(movement, 0)
             elif goingleft:
                 if 'right' not in solid_edges:
@@ -150,11 +155,11 @@ class CollisionSystem(System):
                 if cobmovingx:
                     return
                 if cobgoingup:
-                    if entity.rect.bottom >= cob.rect.old.top:
+                    if entity_spatial.bottom >= cob_spatial.old.top:
                         # Otherwise player will fall be warped off
                         # fast moving elevators
                         return
-                entity.rect.left = cob.rect.right
+                entity_spatial.left = cob_spatial.right
                 stop_movement(movement, 0)
             elif cobgoingleft:
                 if 'left' not in solid_edges:
@@ -168,34 +173,34 @@ class CollisionSystem(System):
             if goingup:
                 if 'bottom' not in solid_edges:
                     return
-                if entity.rect.old.top > cob.rect.bottom:
+                if entity_spatial.old.top > cob_spatial.bottom:
                     return
-                entity.rect.top = cob.rect.bottom
+                entity_spatial.top = cob_spatial.bottom
                 stop_movement(movement, 1)
             elif goingdown:
                 if 'top' not in solid_edges:
                     return
-                if entity.rect.old.bottom < cob.rect.top:
-                    if (entity.rect.old.bottom >= cob.rect.old.top
+                if entity_spatial.old.bottom < cob_spatial.top:
+                    if (entity_spatial.old.bottom >= cob_spatial.old.top
                         and cobmovingy):
                         pass
                     else:
                         return
                 # This makes it so that entity
                 # doesn't slide off moving platforms
-                dx = cob.rect.x - cob.rect.old.x
-                entity.rect.left += dx
-                entity.rect.bottom = cob.rect.top
+                dx = cob_spatial.x - cob_spatial.old.x
+                entity_spatial.left += dx
+                entity_spatial.bottom = cob_spatial.top
                 stop_movement(movement, 1)
             elif cobgoingdown:
                 if 'bottom' not in solid_edges:
                     return
-                entity.rect.top = cob.rect.bottom
+                entity_spatial.top = cob_spatial.bottom
                 stop_movement(movement, 1)
             elif cobgoingup:
                 if 'top' not in solid_edges:
                     return
-                entity.rect.bottom = cob.rect.top
+                entity_spatial.bottom = cob_spatial.top
                 stop_movement(movement, 1)
 
     def deal_damage(self, entity, colliding_object, axis=None):
@@ -294,7 +299,8 @@ class SystemsManager(object):
                 a = AttackSystem(entity, self.collidables, self)
                 systems.append(a)
             if Display in entity.components:
-                self.layer.add(entity, z=entity.component(Display).z)
+                self.layer.add(entity.component(Display).sprite,
+                               z=entity.component(Display).z)
             self.systems[entity] = systems
             entity.systems_manager = self
 
@@ -313,4 +319,6 @@ class SystemsManager(object):
             for system in self.systems[entity]:
                 system.update(dt)
         while self.to_remove:
-            del self.systems[self.to_remove.pop()]
+            torm = self.to_remove.pop()
+            del self.systems[torm]
+            super(Entity, torm).kill()
