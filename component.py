@@ -18,6 +18,12 @@ log = logging.getLogger('compy')
 class Component(object):
 
     def __init__(self):
+        """
+        Called when component is initalized.
+        Entity is not known here, so do not try to reference it
+        in subclasses.
+        Override |on_add| function to handle entity specific code.
+        """
         self.entity = None
         # Added with this classname
         self.add_as = self.__class__
@@ -29,7 +35,11 @@ class Component(object):
         pass
 
     def update(self, dt):
-        # Called each frame
+        """
+        Update method will be called each frame
+        by SystemsManager.
+        dt is the amount of time, in seconds, since last frame.
+        """
         pass
 
 
@@ -53,19 +63,19 @@ class ElevatorController(Component):
     """
     Controls a Movement component.
     """
-    def __init__(self, movement=None, move_by=(0, 0), duration=5):
+    def __init__(self, move_by=(0, 0), duration=5,
+                 reversable=True, stoppable=True, continuous=False):
         super(ElevatorController, self).__init__()
-        self.movement = movement
-        self.move_by = (0, 0)
+        self.move_by = move_by
         self.duration = 5
         self._elapsed = 0
 
         # Can be stopped before duration has passed
-        self.stoppable = True
-        self.reversable = True
+        self.stoppable = stoppable
+        self.reversable = reversable
         # Keeps running until explicitly stopped
         # Implies reversable
-        self.continuous = False
+        self.continuous = continuous
 
     def start(self):
         if self._elapsed >= self.duration:
@@ -73,21 +83,23 @@ class ElevatorController(Component):
         dx, dy = self.move_by
         vx = dx/self.duration
         vy = dy/self.duration
-        self.movement.velocity = [vx, vy]
+        self.entity.component(Movement).velocity = [vx, vy]
 
     def stop(self):
+        m = self.entity.component(Movement)
         if self._elapsed >= self.duration:
             if self.reversable:
                 self.reverse()
-            self.movement.velocity = [0, 0]
+            m.velocity = [0, 0]
         elif self.stoppable:
-            self.movement.velocity = [0, 0]
+            m.velocity = [0, 0]
 
     def reverse(self):
         self.move_by = -self.move_by[0], -self.move_by[1]
 
     def is_running(self):
-        return self.movement.velocity[0] or self.movement.velocity[1]
+        v = self.entity.component(Movement).velocity
+        return v[0] or v[1]
 
     def update(self, dt):
         if self.is_running():
@@ -104,8 +116,8 @@ class BulletController(ElevatorController):
     """
     Controller that moves entity to a point at a given velocity.
     """
-    def __init__(self, movement=None, target_point=(0, 0), velocity=1000):
-        super(BulletController, self).__init__(movement)
+    def __init__(self, entity, target_point=(0, 0), velocity=1000):
+        super(BulletController, self).__init__(entity)
         self.reversable = False
         self.continuous = False
         self._velocity = velocity
@@ -136,12 +148,10 @@ class BulletController(ElevatorController):
     # start method is same elevator_controller
 
     def stop(self):
-        self.movement.velocity = [0, 0]
+        self.entity.component(Movement).velocity = [0, 0]
         self.entity.kill()
 
-    # Update same as elevatorcontroller
-
-
+    # Update method is same as elevatorcontroller
 
 
 class KeyboardController(Controller):
@@ -217,6 +227,8 @@ class KeyboardController(Controller):
             u.use()
             for k in self.map['use']:
                 pressed.discard(k)
+        else:
+            u.end_use()
 
     def do_attack(self, entity, pressed):
         weapon = entity.component(Inventory).equipped
@@ -286,13 +298,19 @@ class Use(Component):
     """
     def __init__(self):
         super(Use, self).__init__()
+        self.is_using = False
 
     def use(self):
+        self.is_using = True
+        return
         for entity in self.entity.component(Collisions).get_colliding():
             try:
                 entity.component(Usable).use(self.entity)
             except KeyError:
                 pass
+
+    def end_use(self):
+        self.is_using = False
 
 
 class PathNodes(Component):
@@ -470,6 +488,7 @@ class Attached(Component):
     Requires Spatial
     """
     def __init__(self, to=None):
+        super(Attached, self).__init__()
         # Should be a Spatial component
         self.attached_to = to
 

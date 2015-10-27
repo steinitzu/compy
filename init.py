@@ -8,6 +8,7 @@ import pyglet
 
 from component import *
 from entity import Entity
+import entity
 from system import SystemsManager
 #from control import KeyboardController
 
@@ -45,249 +46,31 @@ class Level0(cocos.layer.Layer):
         self.schedule(self.update)
 
     def build_player(self):
-        e = Entity()
-        rightimg = 'ballman72x72.png'
-        leftimg = 'ballman72x72left.png'
-
-        # Always add controller before movement
-        # Or won't be able to jump
-
-        display = Display({'default': rightimg,
-                     'right': rightimg,
-                     'left': leftimg})
-        spatial = Spatial(display.sprite,
-                          width_multi=0.8,
-                          height_multi=0.8)
-        collisions = Collisions(solid_edges=[])
-        keyboard = KeyboardController()
-        movement = PlayerMovement()
-        inventory = Inventory()
-        use = Use()
-        e.add_components(display, spatial, collisions,
-                         keyboard, movement, inventory, use, Gravity())
+        e = entity.HumanPlayer('humans')
         e.component(Spatial).center = (500,500)
         return e
 
     def build_platforms(self):
-        display = Display({'default': 'greyplatform256x24.png'})
-        spatial = Spatial(display.sprite)
-        collisions = Collisions()
-        e = Entity(display, spatial, collisions)
-        spatial.center = (500, 300)
-        return [e]
-
-    def build_enemies(self):
-        return []
-
-
-
-
-
-    def _old_build_platforms(self):
         platforms = []
         xpos = 0
         for i in range(self.width/256):
-            img = 'greyplatform256x24.png'
-            display = Display({'default': img})
-            collisions = Collisions(self.collidables)
-            e = Entity(img, width_multi=1, height_multi=1)
-            e.add_components(display, collisions)
-            platforms.append(e)
-            e.rect.left = xpos
-            e.rect.bottom = 300
-            xpos += e.rect.width
+            platforms.append(
+                entity.StaticPlatform(position=(xpos, 250)))
+            xpos += 256
 
-        img = 'greyplatform256x24.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        e = Entity(img, width_multi=1, height_multi=1)
-        e.add_components(display, collisions)
-        platforms.append(e)
-        e.rect.left = 0
-        e.rect.bottom = 340
-
-        img = 'greyplatform256x24.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        e = Entity(img, width_multi=1, height_multi=1)
-        e.add_components(display, collisions)
-        platforms.append(e)
-        e.rect.right = self.width
-        e.rect.bottom = 340
-
-        img = 'greyplatform256x24.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        collisions.solid_edges = ['top']
-        e = Entity(img, width_multi=1, height_multi=1)
-        e.add_components(display, collisions)
-        platforms.append(e)
-        e.rect.left = 400
-        e.rect.bottom = 700
-
-        # Collidable
-        img = 'greyplatform256x24.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        e = Entity(img, width_multi=1, height_multi=1)
-        e.add_components(display, collisions)
-        platforms.append(e)
-        e.rect.left = 800
-        e.rect.bottom = 340
-
-        # Moving platform
-        img = 'greyplatform256x24.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        #collisions.solid_edges = ['top']
-        collisions.no_handlers = True
-        movement = Movement()
-        automove = ElevatorController(movement)
-        automove.move_by = 300, 200
-        automove.duration = 4
-        e = Entity(img, width_multi=1, height_multi=1)
-        e.add_components(display, collisions, automove, movement)
-        e.rect.left = 400
-        e.rect.bottom = 324
-        platforms.append(e)
-
-
-        img = 'switch32x32.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        collisions.solid_edges = []
-        collisions.no_handlers = True
-        usable = Usable(automove)
-        team = Team('humans')
-        switch = Entity(img)
-        switch.add_components(display,
-                              collisions,
-                              usable,
-                              team)
-        switch.rect.x, switch.rect.bottom = (400, 380)
-        switch.bound_to = e
-        platforms.append(switch)
-
-
-        # Moving platform2
-        img = 'greyplatform256x24.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        #collisions.solid_edges = ['top']
-        collisions.no_handlers = True
-        movement = Movement()
-        automove = ElevatorController(movement)
-        automove.move_by = 300, 0
-        automove.duration = 1
-        e = Entity(img, width_multi=1, height_multi=1)
-        e.add_components(display, collisions, automove, movement)
-        e.rect.left = 800
-        e.rect.bottom = 440
-        platforms.append(e)
-
-
-        img = 'switch32x32.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        collisions.solid_edges = []
-        collisions.no_handlers = True
-        usable = Usable(automove)
-        team = Team('humans')
-        switch = Entity(img)
-        switch.add_components(display,
-                              collisions,
-                              usable,
-                              team)
-        switch.rect.x, switch.rect.bottom = (800, 480)
-        switch.bound_to = e
-        platforms.append(switch)
-
-
-        # Moving platform3
-        img = 'greyplatform256x24.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        #collisions.solid_edges = ['top']
-        collisions.no_handlers = True
-        movement = Movement()
-        automove = ElevatorController(movement)
-        automove.move_by = 0, 500
-        automove.continuous = True
-        automove.duration = 2
-        e = Entity(img, width_multi=1, height_multi=1)
-        e.add_components(display, collisions, automove, movement)
-        e.rect.left = 1200
-        e.rect.top = 360
-        platforms.append(e)
-
-
-        img = 'switch32x32.png'
-        display = Display({'default': img})
-        collisions = Collisions(self.collidables)
-        collisions.solid_edges = []
-        collisions.no_handlers = True
-        usable = Usable(automove)
-        team = Team('humans')
-        switch = Entity(img)
-        switch.add_components(display,
-                              collisions,
-                              usable,
-                              team)
-        switch.rect.x, switch.rect.bottom = (1200, 400)
-        switch.bound_to = e
-        platforms.append(switch)
+        elevator = entity.Elevator(
+            position=(500, 350),
+            move_by=(0, 500),
+            duration=4,
+            attached_switch=True,
+            team='humans')
+        platforms.append(elevator.platform)
+        platforms.append(elevator.switch)
 
         return platforms
 
-    def _old_build_player(self):
-        rightimg = 'ballman72x72.png'
-        leftimg = 'ballman72x72left.png'
-        display = Display({'default': rightimg,
-                           'right': rightimg,
-                           'left': leftimg})
-        # Always add controller before movement
-        # Or won't be able to jump
-        keyboard = KeyboardController()
-        movement = PlayerMovement()
-        collisions = Collisions(self.collidables)
-        collisions.solid_edges = []
-        health = Health()
-        gravity = Gravity()
-        team = Team('humans')
-        inventory = Inventory()
-        use = Use()
-        fighting = Fighting()
-
-        e = Entity(rightimg, width_multi=0.8, height_multi=0.8)
-        e.add_components(display,
-                         keyboard,
-                         collisions,
-                         movement,
-                         health,
-                         gravity,
-                         team,
-                         use,
-                         inventory,
-                         fighting)
-        inventory.add(Pistol())
-        inventory.equip(0)
-        return e
-
-    def _old_build_enemies(self):
-        collisions = Collisions(self.collidables)
-        collisions.solid_edges = []
-        health = Health()
-        team = Team('cpu')
-
-        img = {'left': 'evilballman72x72left.png',
-               'right': 'evilballman72x72.png',
-               'default': 'evilballman72x72.png'}
-        display = Display(img)
-        entity = Entity(img['default'], width_multi=0.8, height_multi=0.8)
-        entity.add_components(collisions, health, display, team)
-        entity.rect.x = 600
-        entity.rect.y = 400
-        return [entity]
+    def build_enemies(self):
+        return []
 
     def update(self, dt):
         # TODO: Update systems and components here

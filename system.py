@@ -15,12 +15,14 @@ class System(object):
 
 
 class MovementSystem(System):
-    def __init__(self, movement_component, manager):
+    def __init__(self, entity, manager):
         super(MovementSystem, self).__init__(manager)
-        self.movement = movement_component
+        self.entity = entity
+
+        self.movement = None
         self.collisions = None
         self.gravity = None
-        components = self.movement.entity.components
+        components = self.entity.components
         for c in components.values(): # TODO: Fix later
             if isinstance(c, Movement):
                 self.movement = c
@@ -32,10 +34,13 @@ class MovementSystem(System):
             raise Exception('MovementSystem must be initialized'
                             + ' with at least a'
                             + ' components.Movement component.')
+
         self.collision_system = None
         if self.collisions:
-            self.collision_system = CollisionSystem(self.collisions, manager)
+            self.collision_system = self.manager.get_system(
+                self.entity, CollisionSystem)
             self.collision_system.is_child = True
+            #self.collision_system = CollisionSystem(self.collisions, manager)
 
     def _move_horizontal(self, entity, movement, dt):
         vx = movement.velocity[0]
@@ -85,6 +90,10 @@ class CollisionSystem(System):
             self.handlers = handlers
         # Is child and therefor controlled by external system
         self.is_child = False
+        # Set of usable Components
+        # Will contain any Usable components colliding with entity
+        # if entity has a Use component
+        self.usable = set()
 
     def handle_collisions(self, axis='x'):
         """
@@ -97,7 +106,15 @@ class CollisionSystem(System):
         self.manager.collidables.clear()
         for c in cobs:
             self.manager.collidables.add(c)
+        self.usable.clear()
         for ob in self.manager.collidables.objs_colliding(self.component):
+            if Use in self.entity.components:
+                # Update the set of usables in range of entity
+                try:
+                    usable = ob.entity.component(Usable)
+                    self.usable.add(usable)
+                except KeyError:
+                    pass
             self.handle_collision(ob, axis=axis)
 
     def handle_collision(self, colliding_object, axis='x'):
@@ -108,7 +125,6 @@ class CollisionSystem(System):
         #solid_edges = colliding_object.component(Collisions).solid_edges
         solid_edges = colliding_object.solid_edges
         movement = entity.component(Movement)
-        rect = entity.component(Spatial)
         entity_spatial = entity.component(Spatial)
         cob = colliding_object
 
@@ -258,7 +274,6 @@ class AttackSystem(System):
                 entity.add_components(c_class(**kwargs))
         entity.rect.x, entity.rect.y = self.entity.rect.x, self.entity.rect.y
         self.manager.add_entities(entity)
-        self.manager.layer.add(entity)
         weapon.fire(entity)
 
     def update(self, dt):
@@ -267,6 +282,21 @@ class AttackSystem(System):
             return
         if weapon and weapon.attacking:
             self.attack(weapon)
+
+
+class UseSystem(System):
+    def __init__(self, entity, manager):
+        super(UseSystem, self).__init__(manager)
+        self.entity = entity
+
+    def do_use(self):
+        cs = self.manager.get_system(self.entity, CollisionSystem)
+        for u in cs.usable:
+            u.use(self.entity)
+
+    def update(self, dt):
+        if self.entity.component(Use).is_using:
+            self.do_use()
 
 
 class SystemsManager(object):
@@ -280,28 +310,37 @@ class SystemsManager(object):
         self.layer = layer
         self.to_remove = set()
 
+    def get_system(self, entity, system_type):
+        for s in self.systems[entity]:
+            if isinstance(s, system_type):
+                return s
+        # No system of type, raise exception
+        raise Exception('{} has no system of type {}'.format(
+            entity, system_type))
+
+
     def add_entities(self, *entities):
         """
         Add entity to systems manager and
         create systems for it.
         """
         for entity in entities:
-            systems = []
-            if Movement in entity.components:
-                m = MovementSystem(entity.component(Movement), self)
-                systems.append(m)
-            elif Collisions in entity.components:
-                # Not moving, so we add collision system
-                # seperately
+            self.systems[entity] = []
+            systems = self.systems[entity]
+            if Collisions in entity.components:
                 c = CollisionSystem(entity.component(Collisions), self)
                 systems.append(c)
+            if Movement in entity.components:
+                m = MovementSystem(entity, self)
+                systems.append(m)
             if Fighting in entity.components:
                 a = AttackSystem(entity, self.collidables, self)
                 systems.append(a)
+            if Use in entity.components:
+                systems.append(UseSystem(entity, self))
             if Display in entity.components:
                 self.layer.add(entity.component(Display).sprite,
                                z=entity.component(Display).z)
-            self.systems[entity] = systems
             entity.systems_manager = self
 
     def remove(self, entity):

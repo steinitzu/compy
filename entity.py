@@ -32,22 +32,78 @@ class Entity(object):
         self.systems_manager.remove(self)
 
 
-class Player(Entity):
-    def __init__(self, *args, **kwargs):
-        super(self.__class__, self).__init__(*args, **kwargs)
-        self.add_component(Movement())
-        self.add_component(Collisions())
-        self.add_component(Health())
-        self.add_components(Team('Humans'))
+# Convenience classes
+
+class HumanPlayer(Entity):
+    def __init__(self, team_name):
+        rightimg = 'ballman72x72.png'
+        leftimg = 'ballman72x72left.png'
+
+        # Always add controller before movement
+        # Or won't be able to jump
+
+        display = Display({'default': rightimg,
+                           'right': rightimg,
+                           'left': leftimg})
+        spatial = Spatial(display.sprite,
+                          width_multi=0.8,
+                          height_multi=0.8)
+        collisions = Collisions(solid_edges=[])
+        keyboard = KeyboardController()
+        movement = PlayerMovement()
+        inventory = Inventory()
+        use = Use()
+        team = Team(team_name)
+        gravity = Gravity()
+        super(HumanPlayer, self).__init__(
+            display, spatial, collisions,
+            keyboard, movement, inventory, use,
+            team, gravity)
 
 
-class Platform(Entity):
-    pass
+class StaticPlatform(Entity):
+    def __init__(self, position=(0, 0)):
+        display = Display({'default': 'greyplatform256x24.png'})
+        spatial = Spatial(display.sprite)
+        collisions = Collisions()
+        super(StaticPlatform, self).__init__(display,
+                                             spatial,
+                                             collisions)
+        spatial.left, spatial.top = position
 
 
-class Obstacle(Entity):
-    pass
+class Switch(Entity):
+    def __init__(self, position=(0, 0), controls=None, team=''):
+        display = Display({'default': 'switch32x32.png'})
+        spatial = Spatial(display.sprite)
+        collisions = Collisions(solid_edges=(), no_handlers=True)
+        usable = Usable(controls)
+        teamm = Team(team)
+        super(Switch, self).__init__(display,
+                                     spatial,
+                                     collisions,
+                                     usable,
+                                     teamm)
+        spatial.left, spatial.top = position
 
 
-class AIPlayer(Entity):
-    pass
+class Elevator(object):
+    """
+    An elevator is two entities, platform and switch
+    """
+    def __init__(self, position=(0, 0), move_by=(0, 0),
+                 duration=5, attached_switch=True,
+                 team=''):
+        platform = StaticPlatform(position=position)
+        movement = Movement()
+        control = ElevatorController(move_by=move_by, duration=duration)
+        platform.add_components(movement, control)
+
+        switch = Switch(position=(position[0], position[1]+64),
+                        controls=control,
+                        team=team)
+        if attached_switch:
+            switch.add_components(
+                Attached(to=platform.component(Spatial)))
+        self.platform = platform
+        self.switch = switch
