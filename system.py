@@ -104,8 +104,13 @@ class CollisionSystem(System):
             return
         cobs = self.manager.collidables.known_objs()
         self.manager.collidables.clear()
-        for c in cobs:
-            self.manager.collidables.add(c)
+        for e in self.manager.systems:
+            try:
+                self.manager.collidables.add(
+                    e.component(Collisions))
+            except KeyError:
+                pass
+            #self.manager.collidables.add(c)
         self.usable.clear()
         for ob in self.manager.collidables.objs_colliding(self.component):
             if Use in self.entity.components:
@@ -226,9 +231,10 @@ class CollisionSystem(System):
         """
         base_damage = entity.components[Hurt].damage
         try:
-            if (entity.component(Team) != colliding_object.component(Team)
+            coe = colliding_object.entity
+            if (entity.component(Team) != coe.component(Team)
                 or config.TEAMKILL):
-                colliding_object.component(Health).take_damage(base_damage)
+                coe.component(Health).take_damage(base_damage)
         except KeyError:
             return
 
@@ -260,21 +266,27 @@ class AttackSystem(System):
         self.collidables = collidables
 
     def attack(self, weapon):
-        attack_entity = Entity('ballman72x72.png')
-        entity = attack_entity
+        log.info('ATTACKING')
+        components = []
         if Team in self.entity.components:
-            attack_entity.add_components(
-                Team(self.entity.component(Team).name))
-        for c_class, kwargs in weapon.components.items():
-            if c_class == Collisions:
-                col = c_class(self.collidables, **kwargs)
-                col.solid_edges = ()
-                entity.add_components(col)
+            components.append(Team(
+                self.entity.component(Team).name))
+        display = None
+        for klass, kwargs in weapon.components:
+            log.info(klass)
+            log.info(kwargs)
+            if klass == Display:
+                c = klass(**kwargs)
+                display = c
+            elif klass == Spatial:
+                c = klass(sprite=display.sprite, **kwargs)
             else:
-                entity.add_components(c_class(**kwargs))
-        entity.rect.x, entity.rect.y = self.entity.rect.x, self.entity.rect.y
-        self.manager.add_entities(entity)
-        weapon.fire(entity)
+                c = klass(**kwargs)
+            components.append(c)
+        e = Entity(*components)
+        e.component(Spatial).center = self.entity.component(Spatial).center
+        self.manager.add_entities(e)
+        weapon.fire(e)
 
     def update(self, dt):
         weapon = self.entity.component(Inventory).equipped
@@ -318,7 +330,6 @@ class SystemsManager(object):
         raise Exception('{} has no system of type {}'.format(
             entity, system_type))
 
-
     def add_entities(self, *entities):
         """
         Add entity to systems manager and
@@ -360,4 +371,8 @@ class SystemsManager(object):
         while self.to_remove:
             torm = self.to_remove.pop()
             del self.systems[torm]
-            super(Entity, torm).kill()
+            try:
+                torm.component(Display).sprite.kill()
+            except KeyError:
+                # No display component, move along
+                pass

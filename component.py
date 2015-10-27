@@ -116,15 +116,16 @@ class BulletController(ElevatorController):
     """
     Controller that moves entity to a point at a given velocity.
     """
-    def __init__(self, entity, target_point=(0, 0), velocity=1000):
-        super(BulletController, self).__init__(entity)
+    def __init__(self, target_point=(0, 0), velocity=1000):
+        super(BulletController, self).__init__()
         self.reversable = False
         self.continuous = False
         self._velocity = velocity
         self._target_point = target_point
 
     def set_velocity(self, value):
-        pos = self.entity.rect.x, self.entity.rect.y
+        spatial = self.entity.component(Spatial)
+        pos = spatial.x, spatial.y
         d = distance(self.target_point, pos)
         self.duration = d/value
         self._velocity = value
@@ -132,8 +133,8 @@ class BulletController(ElevatorController):
     velocity = property(lambda self: self._velocity, set_velocity)
 
     def set_target_point(self, value):
-        dx = value[0] - self.entity.rect.x
-        dy = value[1] - self.entity.rect.y
+        dx = value[0] - self.entity.component(Spatial).x
+        dy = value[1] - self.entity.component(Spatial).y
         self.move_by = (dx, dy)
         self._target_point = value
         # Causes duration to update with new distance
@@ -587,6 +588,7 @@ class Weapon(Component):
         self.attacking = True
 
     def perform_attack(self):
+        log.info('Perform attack called')
         self.attacking = True
 
     def end_attack(self):
@@ -609,13 +611,16 @@ class Pistol(Weapon):
         self.velocity = 3000
 
         # Components for bullet and kwarg dict
-        self.components = {Hurt: {'damage': self.damage},
-                           Collisions: {},
-                           Movement: {},
-                           BulletController: {'velocity': self.velocity},
-                           Gravity: {},
-                           Display: {'images': {'default': 'ballman72x72.png'},
-                                     'z': 4}}
+        self.components = (
+            (Display, {'images': {'default': 'ballman72x72.png'},
+                       'z': 4}),
+            (Spatial, {}),
+            (Hurt, {'damage': self.damage}),
+            (Collisions, {'solid_edges': ()}),
+            (Movement, {}),
+            (BulletController, {'velocity': self.velocity}),
+            (Gravity, {}),
+        )
 
     def fire(self, bullet):
         bc = bullet.component(BulletController)
@@ -623,8 +628,9 @@ class Pistol(Weapon):
         arange = self.range
         degrees = math.atan2(self.facing[1], self.facing[0])*180/math.pi
         rads = degrees * (math.pi/180)
-        endpoint = (self.entity.rect.x+math.cos(rads)*arange,
-                    self.entity.rect.y+math.sin(rads)*arange)
+        spatial = self.entity.component(Spatial)
+        endpoint = (spatial.x+math.cos(rads)*arange,
+                    spatial.y+math.sin(rads)*arange)
         bc.target_point = endpoint
         bc.start()
 

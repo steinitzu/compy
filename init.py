@@ -48,6 +48,8 @@ class Level0(cocos.layer.Layer):
     def build_player(self):
         e = entity.HumanPlayer('humans')
         e.component(Spatial).center = (500,500)
+        e.component(Inventory).add(Pistol())
+        e.component(Inventory).equip(0)
         return e
 
     def build_platforms(self):

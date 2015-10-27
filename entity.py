@@ -55,10 +55,11 @@ class HumanPlayer(Entity):
         use = Use()
         team = Team(team_name)
         gravity = Gravity()
+        fighting = Fighting()
         super(HumanPlayer, self).__init__(
             display, spatial, collisions,
             keyboard, movement, inventory, use,
-            team, gravity)
+            team, gravity, fighting)
 
 
 class StaticPlatform(Entity):
