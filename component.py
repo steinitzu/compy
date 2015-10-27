@@ -669,12 +669,29 @@ class PlayerMovement(Movement):
     def __init__(self):
         super(PlayerMovement, self).__init__()
         self.add_as = Movement
+        self.max_jump_y, self.max_jump_x = 0, 0
         self.walk_acceleration = 8*config.METER
         self.max_walk_speed = 4*config.METER
         self.jump_acceleration = 40*config.METER
         self.max_jump_speed = 5.5*config.METER
         self.is_jumping = False
         self.direction = 1
+
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        if name in ('walk_acceleration',
+                    'max_walk_speed',
+                    'jump_acceleration',
+                    'max_jump_speed'):
+            try:
+                self.calculate_max_jump()
+            except AttributeError:
+                # This should only happen when lass hasn't been fully
+                # initialized, meaning it doesn't have all the move
+                # attributes.
+                pass
+
+
 
     def walk(self, accel_mod):
         accel = accel_mod*self.walk_acceleration
@@ -705,6 +722,34 @@ class PlayerMovement(Movement):
             self.is_jumping = False
             self.acceleration[1] = 0
 
+    def calculate_max_jump(self):
+        ax = self.walk_acceleration
+        ay = self.jump_acceleration
+        vxcap = self.max_walk_speed
+        vycap = self.max_jump_speed
+        g = config.GRAVITY
+        vx = vy = 0.0
+        xpos = ypos = ypeak = 0.0
+        dt = 0.1
+        while True:
+            if vx < vxcap:
+                vx += ax*dt
+            else:
+                ax = 0
+            if vy < vycap:
+                vy += ay*dt
+            else:
+                ay = 0
+            vy -= g*dt
+            xpos += vx*dt
+            ypos += vy*dt
+            if vy > 0:
+                ypeak = ypos
+            if ypos <= 0:
+                break
+        self.max_jump_y, self.max_jump_x = ypeak, xpos
+        log.info(ypeak)
+
     def update(self, dt):
         # Update velocity using acceleration, call each frame
         if self.velocity[1] >= self.max_jump_speed:
@@ -713,10 +758,7 @@ class PlayerMovement(Movement):
             self.acceleration[1] = 0
             self.velocity[1] = self.max_jump_speed
 
-        super(self.__class__, self).update(dt)
-
-
-
+        super(PlayerMovement, self).update(dt)
 
 
 class Gravity(Component):

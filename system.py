@@ -316,12 +316,11 @@ class PathSystem(System):
         super(PathSystem, self).__init__(manager)
         self.collidables = manager.collidables
 
-    def get_edges(self, start):
+    def get_edges(self, start, player):
         all_nodes = []
-        width = 100
-        height = 100
-        max_jump_x = 200
-        max_jump_y = 200
+        m = player.component(Movement)
+        max_jump_x = m.max_jump_x
+        max_jump_y = m.max_jump_y
 
         reachable = set()
         for n in all_nodes:
