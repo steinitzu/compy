@@ -319,20 +319,21 @@ class PathNodes(Component):
     When added to a walkable surface, adds pathnodes to it.
     """
     def __init__(self):
-        super(self.__class__, self).__init__()
+        super(PathNodes, self).__init__()
         self.nodes = []
 
     def generate_nodes(self):
         entity = self.entity
+        spatial = entity.component(Spatial)
         if (Collisions not in entity.components
             or 'top' not in entity.component(Collisions).solid_edges):
             self.nodes = []
             return
         nodes = []
-        width = entity.rect.width
-        xpos = entity.rect.left
+        width = spatial.width
+        xpos = spatial.left
         for i in range(width/config.NODE_SPACING):
-            nodes.append([xpos, self.rect.top])
+            nodes.append([xpos, spatial.top])
             xpos += config.NODE_SPACING
         self.nodes = nodes
 
@@ -340,9 +341,10 @@ class PathNodes(Component):
         self.generate_nodes()
 
     def update(self, dt):
-        rect = self.entity.rect
-        if rect.y != rect.old.y or rect.x != rect.old.x:
+        spatial = self.entity.component(Spatial)
+        if spatial.y != spatial.old.y or spatial.x != spatial.old.x:
             self.generate_nodes()
+            log.info(self.nodes)
 
 
 class PathFinding(Component):
@@ -536,8 +538,6 @@ class old_Collisions(Component):
     def update(self, dt):
         if self.disabled:
             self.disabled -= 1
-
-
 
 
 class Health(Component):

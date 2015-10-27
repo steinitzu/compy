@@ -311,6 +311,66 @@ class UseSystem(System):
             self.do_use()
 
 
+class PathSystem(System):
+    def __init__(self, manager):
+        super(PathSystem, self).__init__(manager)
+        self.collidables = manager.collidables
+
+    def get_edges(self, start):
+        all_nodes = []
+        width = 100
+        height = 100
+        max_jump_x = 200
+        max_jump_y = 200
+
+        reachable = set()
+        for n in all_nodes:
+            if abs(n[0]-start[0]) > max_jump_x:
+                continue
+            if abs(n[1]-start[1]) > max_jump_y:
+                continue
+            reachable.add(n)
+
+        edges = set()
+
+        for r in reachable:
+            testity = Entity(
+                Spatial(width=abs(r[0]-start[0]), height=abs(r[1]-start[1])),
+                Collisions(no_handlers=True))
+            s = testity.component(Spatial)
+            if r[0] > start[0]:
+                # Edge is right of start
+                s.right = start[0]
+            elif r[0] < start[0]:
+                s.left = start[0]
+            else:
+                # ?
+                s.left = start[0]
+            s.bottom = start[1]
+            blocked = False
+            for cop in self.collidables.objs_colliding:
+                if r[0] > start[0] and 'left' in cop.solid_edges:
+                    blocked = True
+                    break
+                if r[0] < start[0] and 'right' in cop.solid_edges:
+                    blocked = True
+                    break
+                if r[1] > start[1] and 'bottom' in cop.solid_edges:
+                    blocked = True
+                    break
+                if r[1] < start[1] and 'top' in cop.solid_edges:
+                    blocked = True
+                    break
+            if blocked:
+                continue
+            else:
+                edges.add(r)
+
+        return edges
+
+
+
+
 class SystemsManager(object):
     """
     One per level/scene.

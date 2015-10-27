@@ -67,10 +67,13 @@ class StaticPlatform(Entity):
         display = Display({'default': 'greyplatform256x24.png'})
         spatial = Spatial(display.sprite)
         collisions = Collisions()
+        pathnodes = PathNodes()
         super(StaticPlatform, self).__init__(display,
                                              spatial,
-                                             collisions)
+                                             collisions,
+                                             pathnodes)
         spatial.left, spatial.top = position
+        pathnodes.generate_nodes()
 
 
 class Switch(Entity):
