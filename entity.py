@@ -67,13 +67,12 @@ class StaticPlatform(Entity):
         display = Display({'default': 'greyplatform256x24.png'})
         spatial = Spatial(display.sprite)
         collisions = Collisions()
-        pathnodes = PathNodes()
+        walkable = Walkable()
         super(StaticPlatform, self).__init__(display,
                                              spatial,
                                              collisions,
-                                             pathnodes)
+                                             walkable)
         spatial.left, spatial.top = position
-        pathnodes.generate_nodes()
 
 
 class Switch(Entity):
@@ -108,6 +107,17 @@ class Elevator(object):
                         team=team)
         if attached_switch:
             switch.add_components(
-                Attached(to=platform.component(Spatial)))
+                Attach(platform))
         self.platform = platform
         self.switch = switch
+
+
+class PathNode(Entity):
+    def __init__(self, position, attach_to=None):
+        spatial = Spatial(width=1, height=1)
+        collisions = Collisions(solid_edges=(), no_handlers=True)
+        super(PathNode, self).__init__(spatial, collisions)
+        spatial.center = position
+        if attach_to:
+            attach = Attach(attach_to)
+            self.add_components(attach)

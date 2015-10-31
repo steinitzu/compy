@@ -2,7 +2,7 @@ import logging
 from collections import OrderedDict
 
 from component import *
-from entity import Entity
+from entity import Entity, PathNode
 
 log = logging.getLogger('compy')
 
@@ -312,15 +312,96 @@ class UseSystem(System):
 
 
 class PathSystem(System):
+    """
+    Generally use only one instance per level.
+    Differs from other systems in a way that it
+    manages multiple entities.
+
+    Should be created after all entities have
+    been added to the manager.
+    """
+
     def __init__(self, manager):
         super(PathSystem, self).__init__(manager)
         self.collidables = manager.collidables
+        """
+        { node: {
+            (player.max_jump_x, player.max_jump_y): set([edges])
+            }
+          }
+        """
+        self.nodes = {}
+        self._reverse_edges = {}
+        for entity in self.manager.systems:
+            if Walkable not in entity.components:
+                continue
+            for node in self.create_nodes(entity):
+                self.nodes[node] = {}
+                self._reverse_edges[node] = set()
+        for player in self.manager.systems:
+            if PathFinding in entity.components:
+                for node in self.nodes:
+                    self._set_edges(
+                        node,
+                        player,
+                        self.create_edges(node, player))
 
-    def get_edges(self, start, player):
-        all_nodes = []
+    def _edges(self, start, player):
+        m = player.component(Movement)
+        return self.nodes[start][(m.max_jump_x, m.max_jump_y)]
+
+    def _set_edges(self, start, player, edges):
+        player = self._player_stats(player)
+        self.nodes[start][player] = edges
+        for edge in edges:
+            self._reverse_edges[edge].add(start)
+
+    def _player_stats(self, player):
+        """
+        Turn player into max_jump_x, max_jump_y tuple.
+        """
+        if isinstance(player, tuple):
+            return player
+        else:
+            m = player.component(Movement)
+            return (m.max_jump_x, m.max_jump_y)
+
+    def create_nodes(self, entity):
+        """
+        Create pathnodes on top of given entity.
+        """
+        spatial = entity.component(Spatial)
+        if (Collisions not in entity.components
+            or 'top' not in entity.component(Collisions).solid_edges):
+            self.nodes = []
+            return
+        nodes = []
+        width = spatial.width
+        xpos = spatial.left
+        for i in range(width/config.NODE_SPACING):
+            node = PathNode((xpos, spatial.top), attach_to=entity)
+            nodes.append(node)
+            xpos += config.NODE_SPACING
+        return nodes
+
+    def get_edges(self, start, player, refresh=False):
+        """
+        Get edges for given start using given player's
+        max jump attributes.
+
+        Checks for collisions between the two nodes
+        to make sure there's a clear path.
+        Return a set() of path nodes.
+        """
+        all_nodes = self.nodes
         m = player.component(Movement)
         max_jump_x = m.max_jump_x
         max_jump_y = m.max_jump_y
+        if (start in all_nodes
+            and (max_jump_x, max_jump_y) in all_nodes[start]
+            and not refresh):
+            # Return the previously existing nodes
+            return _edges(start, player)
 
         reachable = set()
         for n in all_nodes:
@@ -341,11 +422,20 @@ class PathSystem(System):
                 # Edge is right of start
                 s.right = start[0]
             elif r[0] < start[0]:
+                # Edge is left of start
                 s.left = start[0]
             else:
-                # ?
+                # vertical line, what do?
                 s.left = start[0]
-            s.bottom = start[1]
+            if r[1] > start[1]:
+                # Edge is above start
+                s.bottom = start[1]
+            elif r[1] < start[1]:
+                # Edge is below start
+                s.bottom = r[1]
+            else:
+                # Edge is level with start
+                s.bottom = start[1]
             blocked = False
             for cop in self.collidables.objs_colliding:
                 if r[0] > start[0] and 'left' in cop.solid_edges:
@@ -367,7 +457,73 @@ class PathSystem(System):
 
         return edges
 
+    def get_path(self, goal):
+        current_node = self.current_node
+        if not current_node or not goal:
+            return []
+        elif current_node == goal:
+            return [goal]
+        if not self.last_target_node:
+            self.last_target_node = goal
+        if goal.unreachable:
+            log.info('Goal unreachable: %s', goal)
+            return [current_node]
+        elif self.last_target_node == goal:
+            if self.destination not in self.current_node.get_edges(self):
+                pass
+            else:
+                log.info('Reusing last path: %s', self.path)
+                return self.path
+        else:
+            self.last_target_node = goal
 
+        start = current_node
+        frontier = PriorityQueue()
+        frontier.put(start, 0)
+        came_from = {}
+        cost_so_far = {}
+        came_from[start] = None
+        cost_so_far[start] = 0
+
+        while not frontier.empty():
+            current = frontier.get()
+            if current is goal:
+                break
+            # Get current node edges
+            for next in current.get_edges(self):
+                new_cost = cost_so_far[current] + current.cost(next)
+                if next not in cost_so_far or new_cost < cost_so_far[next]:
+                    cost_so_far[next] = new_cost
+                    priority = new_cost + self._heuristic(goal, next)
+                    frontier.put(next, priority)
+                    came_from[next] = current
+        path = []
+        path.append(goal)
+        current = goal
+        while True:
+            try:
+                current = came_from[current]
+            except KeyError:
+                log.warning('No available path to %s', current)
+                current.unreachable = True
+                break
+            if not current:
+                break
+            path.append(current)
+        # Pop current node from path
+        path.pop()
+        return path
+
+    def reverse_edges(self, edge):
+        """
+        Get all nodes that given node is an edge of.
+        """
+        return self.reverse_edges[edge]
+
+    def update(self, dt):
+        for node in self.nodes:
+            spatial = node.component(Spatial)
+            # TODO: Use reverse edges to update the edges
 
 
 class SystemsManager(object):

@@ -314,39 +314,6 @@ class Use(Component):
         self.is_using = False
 
 
-class PathNodes(Component):
-    """
-    When added to a walkable surface, adds pathnodes to it.
-    """
-    def __init__(self):
-        super(PathNodes, self).__init__()
-        self.nodes = []
-
-    def generate_nodes(self):
-        entity = self.entity
-        spatial = entity.component(Spatial)
-        if (Collisions not in entity.components
-            or 'top' not in entity.component(Collisions).solid_edges):
-            self.nodes = []
-            return
-        nodes = []
-        width = spatial.width
-        xpos = spatial.left
-        for i in range(width/config.NODE_SPACING):
-            nodes.append([xpos, spatial.top])
-            xpos += config.NODE_SPACING
-        self.nodes = nodes
-
-    def on_add(self):
-        self.generate_nodes()
-
-    def update(self, dt):
-        spatial = self.entity.component(Spatial)
-        if spatial.y != spatial.old.y or spatial.x != spatial.old.x:
-            self.generate_nodes()
-            log.info(self.nodes)
-
-
 class PathFinding(Component):
     def __init__(self):
         super(self.__class__, self).__init__()
@@ -479,24 +446,52 @@ class Collisions(Component):
         return cshape
 
     def on_add(self):
+        # Must be added after Spatial or this will
+        # cause an exception
         self.cshape = self.get_cshape()
 
 
-class Attached(Component):
+class Walkable(Component):
+    """
+    Makes the entity walkable.
+    This component essentially does nothing, but rather serves as a flag
+    for the PathSystem, marking a surface as walkable for pathfinding
+    algorithms.
+    Add this to any platform or surface that AI players should
+    be able to walk on.
+    """
+    def __init__(self):
+        super(Walkable, self).__init__()
+
+
+class Attach(Component):
     """
     Entity with this component is attached to a
-    given Spatial component.
+    given Entity.
     That means, whenever the attached component moves,
     this entity moves.
-    Requires Spatial
+    Both entities must have a Spatial component.
     """
-    def __init__(self, to=None):
-        super(Attached, self).__init__()
-        # Should be a Spatial component
-        self.attached_to = to
+    def __init__(self, target):
+        super(Attach, self).__init__()
+        # The actual spatial component
+        # self is attached to
+        self._target = None
+        self.target = target
+
+    def set_target(self, value):
+        self._target = value.component(Spatial)
+
+    target = property(lambda self: self._target, set_target)
+
+    def on_add(self):
+        # Make sure entity has a Movement component
+        # so that its Spatial keeps track of old position
+        if Movement not in self.entity.components:
+            self.entity.add_components(Movement)
 
     def update(self, dt):
-        target = self.attached_to
+        target = self.target
         spatial = self.entity.component(Spatial)
         delta_pos = (target.x - target.old.x,
                      target.y - target.old.y)
