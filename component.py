@@ -488,7 +488,7 @@ class Attach(Component):
         # Make sure entity has a Movement component
         # so that its Spatial keeps track of old position
         if Movement not in self.entity.components:
-            self.entity.add_components(Movement)
+            self.entity.add_components(Movement())
 
     def update(self, dt):
         target = self.target
