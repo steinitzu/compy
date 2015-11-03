@@ -1,3 +1,4 @@
+import random
 import os
 
 import cocos
@@ -59,6 +60,13 @@ class Level0(cocos.layer.Layer):
             platforms.append(
                 entity.StaticPlatform(position=(xpos, 250)))
             xpos += 256
+
+        ypos = 200
+        for i in range(10):
+            xpos = random.randrange(100, 1024)
+            platforms.append(
+                entity.StaticPlatform(position=(xpos, ypos)))
+            ypos += 200
 
         elevator = entity.Elevator(
             position=(500, 350),

@@ -23,7 +23,7 @@ class Entity(object):
         return self.components[klass]
 
     def remove_component(self, component):
-        if isinstance(component, types.ClassType):
+        if isinstance(component, (type, types.ClassType)):
             self.components.pop(component)
         else:
             self.components.pop(component.__class__)
@@ -101,6 +101,7 @@ class Elevator(object):
         movement = Movement()
         control = ElevatorController(move_by=move_by, duration=duration)
         platform.add_components(movement, control)
+        platform.component(Collisions).no_handlers = True
 
         switch = Switch(position=(position[0], position[1]+64),
                         controls=control,

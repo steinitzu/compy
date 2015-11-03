@@ -661,14 +661,25 @@ class PlayerMovement(Movement):
     """
     Movement for players, jump, walk and such functions.
     """
-    def __init__(self):
+    def __init__(self, **kwargs):
         super(PlayerMovement, self).__init__()
         self.add_as = Movement
         self.max_jump_y, self.max_jump_x = 0, 0
-        self.walk_acceleration = 8*config.METER
-        self.max_walk_speed = 4*config.METER
-        self.jump_acceleration = 40*config.METER
-        self.max_jump_speed = 5.5*config.METER
+        self.walk_acceleration = kwargs.get('walk_acceleration',
+                                            8*config.METER)
+        self.max_walk_speed = kwargs.get('max_walk_speed',
+                                         4*config.METER)
+        self.jump_acceleration = kwargs.get('jump_acceleration',
+                                            40*config.METER)
+        self.max_jump_speed = kwargs.get('max_jump_speed',
+                                         5.5*config.METER)
+        # How many times the player can jump without
+        # touching the ground in between.
+        # 1 is default (single jump). Use 2 for double jumps and so on
+        # float('inf') is allowed, for infinite jumps
+        self.jump_count = kwargs.get('jump_count',
+                                     1)
+        self._jump_counter = 0
         self.is_jumping = False
         self.direction = 1
 
@@ -685,8 +696,6 @@ class PlayerMovement(Movement):
                 # initialized, meaning it doesn't have all the move
                 # attributes.
                 pass
-
-
 
     def walk(self, accel_mod):
         accel = accel_mod*self.walk_acceleration
@@ -708,12 +717,16 @@ class PlayerMovement(Movement):
             self.acceleration[0] = -self.direction*self.walk_acceleration
 
     def jump(self):
-        if not self.is_jumping and self.velocity[1] == 0:
+        if self.velocity[1] == 0:
+            self._jump_counter = 0
+        if (self._jump_counter < self.jump_count
+            and not self.is_jumping):
             self.is_jumping = True
             self.acceleration[1] = self.jump_acceleration
 
     def end_jump(self):
         if self.is_jumping:
+            self._jump_counter += 1
             self.is_jumping = False
             self.acceleration[1] = 0
 

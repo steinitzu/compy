@@ -158,6 +158,7 @@ class CollisionSystem(System):
             m.acceleration[i] = 0
 
         if axis == 'x':
+            corrected = False
             if goingright:
                 if 'left' not in solid_edges:
                     return
@@ -169,6 +170,7 @@ class CollisionSystem(System):
                         # fast moving elevators
                         return
                 entity_spatial.right = cob_spatial.left
+                corrected = True
                 stop_movement(movement, 0)
             elif goingleft:
                 if 'right' not in solid_edges:
@@ -181,6 +183,7 @@ class CollisionSystem(System):
                         # fast moving elevators
                         return
                 entity_spatial.left = cob_spatial.right
+                corrected = True
                 stop_movement(movement, 0)
             elif cobgoingleft:
                 if 'left' not in solid_edges:
@@ -190,13 +193,20 @@ class CollisionSystem(System):
                 if 'right' not in solid_edges:
                     return
                 stop_movement(movement, 0)
+            if corrected:
+                entity_spatial.old.x = entity_spatial.x
         elif axis == 'y':
+            corrected = False
             if goingup:
                 if 'bottom' not in solid_edges:
                     return
                 if entity_spatial.old.top > cob_spatial.bottom:
+                    # TODO: this sometimes allows player to jump through
+                    # solid bottom platforms when air_jumps are enabled.
+                    # but if removed, he may fall through the floor
                     return
                 entity_spatial.top = cob_spatial.bottom
+                corrected = True
                 stop_movement(movement, 1)
             elif goingdown:
                 if 'top' not in solid_edges:
@@ -212,17 +222,22 @@ class CollisionSystem(System):
                 dx = cob_spatial.x - cob_spatial.old.x
                 entity_spatial.left += dx
                 entity_spatial.bottom = cob_spatial.top
+                corrected = True
                 stop_movement(movement, 1)
             elif cobgoingdown:
                 if 'bottom' not in solid_edges:
                     return
                 entity_spatial.top = cob_spatial.bottom
+                corrected = True
                 stop_movement(movement, 1)
             elif cobgoingup:
                 if 'top' not in solid_edges:
                     return
                 entity_spatial.bottom = cob_spatial.top
+                corrected = True
                 stop_movement(movement, 1)
+            if corrected:
+                entity_spatial.old.y = entity_spatial.y
 
     def deal_damage(self, entity, colliding_object, axis=None):
         """
