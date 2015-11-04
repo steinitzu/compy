@@ -348,6 +348,7 @@ class Display(Component):
 
 
 from cocos.rect import Rect
+from cocos.euclid import Vector2
 class Spatial(Component):
     """
     Gives entity a rectangular area on screen.
@@ -370,6 +371,7 @@ class Spatial(Component):
         self.width_multi, self.height_multi = width_multi, height_multi
         self.rect = self.get_rect(sprite=sprite, width=width, height=height)
         self.old = self.get_rect(sprite=sprite, width=width, height=height)
+        self.history = []
 
     def get_rect(self, sprite=None, width=1, height=1):
         if sprite:
@@ -391,6 +393,8 @@ class Spatial(Component):
             old_val = getattr(self.rect, name)
         setattr(self.old, name, old_val)
         setattr(self.rect, name, value)
+        # self.history.append((self.rect.right, self.rect.bottom, name,
+        #                      self.old.right, self.old.bottom))
         try:
             s = self.entity.component(Display).sprite
             s.position = self.rect.center
@@ -399,7 +403,8 @@ class Spatial(Component):
             pass
         try:
             # Adjust collision shape accordingly
-            self.entity.component(Collisions).cshape.center = self.rect.center
+            self.entity.component(
+                Collisions).cshape.center = Vector2(*self.rect.center)
         except:
             # No collisions
             pass
@@ -442,7 +447,7 @@ class Collisions(Component):
     def get_cshape(self):
         # Depends on a Spatial component
         sp = self.entity.component(Spatial)
-        cshape = AARectShape(sp.center, sp.width/2, sp.height/2)
+        cshape = AARectShape(sp.center, sp.width/2.0, sp.height/2.0)
         return cshape
 
     def on_add(self):
@@ -647,6 +652,10 @@ class Movement(Component):
         super(Movement, self).__init__()
         self.acceleration = [0, 0]
         self.velocity = [0, 0]
+
+    def stop(self, axis='x'):
+        index = 0 if axis == 'x' else 1
+        self.acceleration[index] = self.velocity[index] = 0
 
     def update(self, dt):
         self.velocity[0] += self.acceleration[0]*dt

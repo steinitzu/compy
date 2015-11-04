@@ -61,8 +61,9 @@ class MovementSystem(System):
     def move(self, dt):
         entity = self.movement.entity
         movement = self.movement
-        self._move_horizontal(entity, movement, dt)
+
         self._move_vertical(entity, movement, dt)
+        self._move_horizontal(entity, movement, dt)
 
     def update(self, dt):
         self.move(dt)
@@ -123,121 +124,65 @@ class CollisionSystem(System):
             self.handle_collision(ob, axis=axis)
 
     def handle_collision(self, colliding_object, axis='x'):
+        # log.info('%s, %s',
+        #          self.entity.component(Spatial).right,
+        #          self.entity.component(Spatial).left)
         for h in self.handlers:
             h(self.entity, colliding_object, axis=axis)
 
     def correct_position(self, entity, colliding_object, axis='x'):
-        #solid_edges = colliding_object.component(Collisions).solid_edges
+        if axis == 'x':
+            self._correct_position_x(entity, colliding_object)
+        elif axis == 'y':
+            self._correct_position_y(entity, colliding_object)
+
+    def _correct_position_x(self, entity, colliding_object):
         solid_edges = colliding_object.solid_edges
         movement = entity.component(Movement)
-        entity_spatial = entity.component(Spatial)
-        cob = colliding_object
+        cobrect = colliding_object.entity.component(Spatial)
+        erect = entity.component(Spatial)
 
-        goingleft = entity_spatial.x < entity_spatial.old.x
-        goingright = entity_spatial.x > entity_spatial.old.x
-        goingup = entity_spatial.y > entity_spatial.old.y
-        goingdown = entity_spatial.y < entity_spatial.old.y
-        notmoving = (not goingleft and not goingright
-                     and not goingup and not goingdown)
+        goingleft = erect.x < erect.old.x
+        goingright = erect.x > erect.old.x
+        cobgoingleft = cobrect.x < cobrect.old.x
+        cobgoingright = cobrect.x > cobrect.old.x
 
-        cob_spatial = cob.entity.component(Spatial)
+        if goingright or cobgoingleft:
+            if 'left' in solid_edges:
+                if erect.old.right <= cobrect.old.left:
+                    erect.right = erect.old.right = cobrect.left
+                    movement.stop('x')
+        elif goingleft or cobgoingright:
+            if 'right' in solid_edges:
+                if erect.old.left >= cobrect.old.right:
+                    erect.left = cobrect.right
+                    movement.stop('x')
 
-        cobgoingleft = cob_spatial.x < cob_spatial.old.x
-        cobgoingright = cob_spatial.x > cob_spatial.old.x
-        cobgoingup = cob_spatial.y > cob_spatial.old.y
-        cobgoingdown = cob_spatial.y < cob_spatial.old.y
-        cobnotmoving = (not cobgoingleft and not cobgoingright
-                     and not cobgoingup and not cobgoingdown)
-        cobmovingx = cobgoingleft or cobgoingright
-        cobmovingy = cobgoingup or cobgoingdown
+    def _correct_position_y(self, entity, colliding_object):
+        solid_edges = colliding_object.solid_edges
+        movement = entity.component(Movement)
+        cobrect = colliding_object.entity.component(Spatial)
+        erect = entity.component(Spatial)
 
-        # TODO: handle this shit later
+        goingup = erect.y > erect.old.y
+        goingdown = erect.y < erect.old.y
 
-        def stop_movement(m, i):
-            m.velocity[i] = 0
-            m.acceleration[i] = 0
+        cobgoingleft = cobrect.x < cobrect.old.x
+        cobgoingright = cobrect.x > cobrect.old.x
 
-        if axis == 'x':
-            corrected = False
-            if goingright:
-                if 'left' not in solid_edges:
-                    return
-                if cobmovingx:
-                    return
-                if cobgoingup:
-                    if entity_spatial.bottom >= cob_spatial.old.top:
-                        # Otherwise player will fall be warped off
-                        # fast moving elevators
-                        return
-                entity_spatial.right = cob_spatial.left
-                corrected = True
-                stop_movement(movement, 0)
-            elif goingleft:
-                if 'right' not in solid_edges:
-                    return
-                if cobmovingx:
-                    return
-                if cobgoingup:
-                    if entity_spatial.bottom >= cob_spatial.old.top:
-                        # Otherwise player will fall be warped off
-                        # fast moving elevators
-                        return
-                entity_spatial.left = cob_spatial.right
-                corrected = True
-                stop_movement(movement, 0)
-            elif cobgoingleft:
-                if 'left' not in solid_edges:
-                    return
-                stop_movement(movement, 0)
-            elif cobgoingright:
-                if 'right' not in solid_edges:
-                    return
-                stop_movement(movement, 0)
-            if corrected:
-                entity_spatial.old.x = entity_spatial.x
-        elif axis == 'y':
-            corrected = False
-            if goingup:
-                if 'bottom' not in solid_edges:
-                    return
-                if entity_spatial.old.top > cob_spatial.bottom:
-                    # TODO: this sometimes allows player to jump through
-                    # solid bottom platforms when air_jumps are enabled.
-                    # but if removed, he may fall through the floor
-                    return
-                entity_spatial.top = cob_spatial.bottom
-                corrected = True
-                stop_movement(movement, 1)
-            elif goingdown:
-                if 'top' not in solid_edges:
-                    return
-                if entity_spatial.old.bottom < cob_spatial.top:
-                    if (entity_spatial.old.bottom >= cob_spatial.old.top
-                        and cobmovingy):
-                        pass
-                    else:
-                        return
-                # This makes it so that entity
-                # doesn't slide off moving platforms
-                dx = cob_spatial.x - cob_spatial.old.x
-                entity_spatial.left += dx
-                entity_spatial.bottom = cob_spatial.top
-                corrected = True
-                stop_movement(movement, 1)
-            elif cobgoingdown:
-                if 'bottom' not in solid_edges:
-                    return
-                entity_spatial.top = cob_spatial.bottom
-                corrected = True
-                stop_movement(movement, 1)
-            elif cobgoingup:
-                if 'top' not in solid_edges:
-                    return
-                entity_spatial.bottom = cob_spatial.top
-                corrected = True
-                stop_movement(movement, 1)
-            if corrected:
-                entity_spatial.old.y = entity_spatial.y
+        if goingup:
+            if 'bottom' in solid_edges:
+                if erect.old.top <= cobrect.old.bottom:
+                    erect.top = cobrect.bottom
+                    movement.stop('y')
+        elif goingdown:
+            if 'top' in solid_edges:
+                if erect.old.bottom >= cobrect.old.top:
+                    erect.bottom = cobrect.top
+                    movement.stop('y')
+                    if cobgoingleft or cobgoingright:
+                        # so we don't slide off moving platforms
+                        erect.x += cobrect.x - cobrect.old.x
 
     def deal_damage(self, entity, colliding_object, axis=None):
         """

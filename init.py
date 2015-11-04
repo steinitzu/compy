@@ -25,7 +25,7 @@ class Level0(cocos.layer.Layer):
         self.height = 2048
         self.collidables = CollisionManagerGrid(
             0, self.width, 0, self.height,
-            256, 256)
+            int(256*1.25), int(256*1.25))
 
         self.scroller = layer.scrolling.ScrollableLayer()
         self.scroller.px_width, self.scroller.px_height = (
@@ -46,6 +46,8 @@ class Level0(cocos.layer.Layer):
 
         self.schedule(self.update)
 
+        self.is_event_handler = True
+
     def build_player(self):
         e = entity.HumanPlayer('humans')
         e.component(Spatial).center = (500,500)
@@ -64,13 +66,37 @@ class Level0(cocos.layer.Layer):
         ypos = 200
         for i in range(10):
             xpos = random.randrange(100, 1024)
-            platforms.append(
-                entity.StaticPlatform(position=(xpos, ypos)))
+            p = entity.StaticPlatform(position=(xpos, ypos))
+            if i % 2 == 0:
+                p.component(Collisions).solid_edges = ('top',)
+            platforms.append(p)
             ypos += 200
 
+        # xpos, ypos = 400, 300
+        # platforms.append(
+        #     entity.StaticPlatform(position=(xpos, ypos)))
+
         elevator = entity.Elevator(
-            position=(500, 350),
+            position=(520, 300),
             move_by=(0, 500),
+            duration=4,
+            attached_switch=True,
+            team='humans')
+        platforms.append(elevator.platform)
+        platforms.append(elevator.switch)
+
+        elevator = entity.Elevator(
+            position=(800, 300),
+            move_by=(300, 0),
+            duration=4,
+            attached_switch=True,
+            team='humans')
+        platforms.append(elevator.platform)
+        platforms.append(elevator.switch)
+
+        elevator = entity.Elevator(
+            position=(1100, 300),
+            move_by=(300, 500),
             duration=4,
             attached_switch=True,
             team='humans')
@@ -81,6 +107,9 @@ class Level0(cocos.layer.Layer):
 
     def build_enemies(self):
         return []
+
+    def on_pop(self, *args, **kwargs):
+        print 'shit fuck'
 
     def update(self, dt):
         # TODO: Update systems and components here
@@ -93,6 +122,19 @@ class Level0(cocos.layer.Layer):
         sp = self.player.component(Spatial)
         self.scroll_man.set_focus(sp.x, sp.y)
 
+class Sena(cocos.scene.Scene):
+    def on_exit(self, *args, **kwargs):
+        super(Sena, self).on_exit()
+        l = self.children[0][1]
+        s = l.player.component(Spatial)
+        h = s.history
+        for line in h:
+            print line
+        c = l.player.component(Collisions)
+        print c.cshape.rx, c.cshape.ry
+        print s.width, s.height
+
+
 
 cocos.director.director.init(width=1920, height=1080,
                              caption='Compy',
@@ -100,5 +142,5 @@ cocos.director.director.init(width=1920, height=1080,
                              fullscreen=False)
 cocos.director.director.show_FPS = True
 
-scene = cocos.scene.Scene(Level0())
+scene = Sena(Level0())
 cocos.director.director.run(scene)

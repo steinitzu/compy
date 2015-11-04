@@ -45,9 +45,12 @@ class HumanPlayer(Entity):
         display = Display({'default': rightimg,
                            'right': rightimg,
                            'left': leftimg})
+        # TODO: Odd numbers for width and height
+        # break collisions
+        # cshape half_width needs to be a whole number
         spatial = Spatial(display.sprite,
-                          width_multi=0.8,
-                          height_multi=0.8)
+                          width_multi=0.9,
+                          height_multi=0.9)
         collisions = Collisions(solid_edges=[])
         keyboard = KeyboardController()
         movement = PlayerMovement()
