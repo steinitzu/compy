@@ -324,6 +324,14 @@ class PathSystem(System):
             nodes.append(node)
             self.manager.add_entities(node)
             xpos += config.NODE_SPACING
+        if ElevatorController in entity.components:
+            # TODO: needs fixing, cause edgefinding can't check for
+            # collisions given all possible elevator positions
+            ec = entity.component(ElevatorController)
+            nodes2 = [PathNode((n[0]+ec.move_by[0], n[1]+ec.move_by[1]),
+                               attach_to=entity)
+                      for n in nodes]
+            nodes += nodes2
         return nodes
 
     def generate_graph(self):
@@ -375,7 +383,7 @@ class PathSystem(System):
                 continue
             if abs(n[0]-start[0]) > max_jump_x:
                 continue
-            if abs(n[1]-start[1]) > max_jump_y:
+            if n[1]-start[1] > max_jump_y:
                 continue
             reachable.add(n)
 
@@ -489,9 +497,15 @@ class PathSystem(System):
         for node in self.nodes:
             players = self.nodes[node].keys()
             for edge in self.nodes[node][players[0]]:
+                if edge[1] > node[1]:
+                    color = rgba('yellow', 125)
+                elif edge[1] < node[1]:
+                    color = rgba('green', 125)
+                else:
+                    color = rgba('red', 125)
                 l = draw.Line(
                     (node[0], node[1]), (edge[0], edge[1]),
-                    rgba('yellow'), stroke_width=3)
+                    color, stroke_width=3)
                 b.add(l)
         self.manager.layer.add(b, z=4)
 
@@ -553,6 +567,10 @@ class SystemsManager(object):
         self.to_remove.add(entity)
 
     def update(self, dt):
+        if dt > 1.0/25:
+            # slow game down if fps drops too low
+            # so collisions don't get messed up
+            dt = 1.0/30
         # Update all components and systems
         for entity in self.systems.keys():
             for component in entity.components.values():

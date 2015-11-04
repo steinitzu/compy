@@ -25,6 +25,8 @@ class CollisionManager(object):
     def objs_colliding(self, entity):
         e = entity.component(Spatial)
         for other in self.known_entities:
+            if other == entity:
+                continue
             o = other.component(Spatial)
             if e.left >= o.right or e.right <= o.left:
                 continue
