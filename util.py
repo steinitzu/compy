@@ -1,6 +1,11 @@
 import math
 import collections
 import heapq
+from webcolors import name_to_rgb as rgb
+
+
+def rgba(name, alpha=255):
+    return rgb(name) + (alpha,)
 
 
 def distance(pointa, pointb):

@@ -64,6 +64,34 @@ class HumanPlayer(Entity):
             keyboard, movement, inventory, use,
             team, gravity, fighting)
 
+class AIPlayer(Entity):
+    def __init__(self, team_name):
+        rightimg = 'evilballman72x72.png'
+        leftimg = 'evilballman72x72left.png'
+
+        display = Display({'default': rightimg,
+                           'right': rightimg,
+                           'left': leftimg})
+        # TODO: Odd numbers for width and height
+        # break collisions
+        # cshape half_width needs to be a whole number
+        spatial = Spatial(display.sprite,
+                          width_multi=0.9,
+                          height_multi=0.9)
+        collisions = Collisions(solid_edges=[])
+        movement = PlayerMovement()
+        inventory = Inventory()
+        use = Use()
+        team = Team(team_name)
+        gravity = Gravity()
+        fighting = Fighting()
+        pathfinding = PathFinding()
+        super(AIPlayer, self).__init__(
+            display, spatial, collisions,
+            movement, inventory, use,
+            team, gravity, fighting,
+            pathfinding)
+
 
 class StaticPlatform(Entity):
     def __init__(self, position=(0, 0)):
@@ -99,10 +127,11 @@ class Elevator(object):
     """
     def __init__(self, position=(0, 0), move_by=(0, 0),
                  duration=5, attached_switch=True,
-                 team=''):
+                 team='', continuous=False):
         platform = StaticPlatform(position=position)
         movement = Movement()
-        control = ElevatorController(move_by=move_by, duration=duration)
+        control = ElevatorController(move_by=move_by, duration=duration,
+                                     continuous=continuous)
         platform.add_components(movement, control)
         platform.component(Collisions).no_handlers = True
 
@@ -125,3 +154,13 @@ class PathNode(Entity):
         if attach_to:
             attach = Attach(attach_to)
             self.add_components(attach)
+
+    def __getitem__(self, index):
+        return self.component(Spatial).center[index]
+
+    def __str__(self):
+        return 'Pathnode: ({}, {})'.format(
+            *self.component(Spatial).center)
+
+    def __repr__(self):
+        return str(self)

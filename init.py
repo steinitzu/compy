@@ -2,7 +2,7 @@ import random
 import os
 
 import cocos
-from cocos.collision_model import CollisionManagerGrid, CollisionManagerBruteForce
+#from cocos.collision_model import CollisionManagerGrid, CollisionManagerBruteForce
 from cocos import layer
 
 import pyglet
@@ -10,7 +10,8 @@ import pyglet
 from component import *
 from entity import Entity
 import entity
-from system import SystemsManager
+from system import SystemsManager, PathSystem
+from collisions import CollisionManager
 #from control import KeyboardController
 
 pyglet.resource.path = [os.path.join(os.path.realpath(''), 'resources')]
@@ -23,9 +24,10 @@ class Level0(cocos.layer.Layer):
         self.is_event_handler = True
         self.width = 2560
         self.height = 2048
-        self.collidables = CollisionManagerGrid(
-            0, self.width, 0, self.height,
-            int(256*1.25), int(256*1.25))
+        self.collidables = CollisionManager()
+        #CollisionManagerGrid(
+            # 0, self.width, 0, self.height,
+            # int(256*1.25), int(256*1.25))
 
         self.scroller = layer.scrolling.ScrollableLayer()
         self.scroller.px_width, self.scroller.px_height = (
@@ -43,7 +45,11 @@ class Level0(cocos.layer.Layer):
         self.systems_manager.add_entities(*self.platforms)
         self.systems_manager.add_entities(self.player)
         self.systems_manager.add_entities(*self.enemies)
-
+        # Temporary
+        self.systems_manager.pathfinding = PathSystem(
+            self.systems_manager)
+        self.systems_manager.pathfinding.generate_graph()
+        self.systems_manager.pathfinding.draw_graph()
         self.schedule(self.update)
 
         self.is_event_handler = True
@@ -81,7 +87,8 @@ class Level0(cocos.layer.Layer):
             move_by=(0, 500),
             duration=4,
             attached_switch=True,
-            team='humans')
+            team='humans',
+            continuous=True)
         platforms.append(elevator.platform)
         platforms.append(elevator.switch)
 
@@ -106,21 +113,18 @@ class Level0(cocos.layer.Layer):
         return platforms
 
     def build_enemies(self):
-        return []
+        e = entity.AIPlayer('cpu')
+        e.component(Spatial).center = 600, 500
+        return [e]
 
     def on_pop(self, *args, **kwargs):
         print 'shit fuck'
 
     def update(self, dt):
-        # TODO: Update systems and components here
-        # dt = 1.0/340
         self.systems_manager.update(dt)
-        # cols = self.collidables.known_objs()
-        # self.collidables.clear()
-        # for c in cols:
-        #     self.collidables.add(c)
         sp = self.player.component(Spatial)
         self.scroll_man.set_focus(sp.x, sp.y)
+
 
 class Sena(cocos.scene.Scene):
     def on_exit(self, *args, **kwargs):
@@ -133,6 +137,8 @@ class Sena(cocos.scene.Scene):
         c = l.player.component(Collisions)
         print c.cshape.rx, c.cshape.ry
         print s.width, s.height
+        log.info('\n'.join(
+            str(n) for n in l.systems_manager.pathfinding.nodes.items()))
 
 
 

@@ -1,8 +1,12 @@
 import logging
 from collections import OrderedDict
 
+from cocos import draw
+import cocos
+
 from component import *
 from entity import Entity, PathNode
+from util import rgba
 
 log = logging.getLogger('compy')
 
@@ -113,7 +117,7 @@ class CollisionSystem(System):
                 pass
             #self.manager.collidables.add(c)
         self.usable.clear()
-        for ob in self.manager.collidables.objs_colliding(self.component):
+        for ob in self.manager.collidables.objs_colliding(self.entity):
             if Use in self.entity.components:
                 # Update the set of usables in range of entity
                 try:
@@ -291,30 +295,7 @@ class PathSystem(System):
           }
         """
         self.nodes = {}
-        self._reverse_edges = {}
-        for entity in self.manager.systems:
-            if Walkable not in entity.components:
-                continue
-            for node in self.create_nodes(entity):
-                self.nodes[node] = {}
-                self._reverse_edges[node] = set()
-        for player in self.manager.systems:
-            if PathFinding in entity.components:
-                for node in self.nodes:
-                    self._set_edges(
-                        node,
-                        player,
-                        self.create_edges(node, player))
-
-    def _edges(self, start, player):
-        m = player.component(Movement)
-        return self.nodes[start][(m.max_jump_x, m.max_jump_y)]
-
-    def _set_edges(self, start, player, edges):
-        player = self._player_stats(player)
-        self.nodes[start][player] = edges
-        for edge in edges:
-            self._reverse_edges[edge].add(start)
+        self.reverse_edges = {}
 
     def _player_stats(self, player):
         """
@@ -326,7 +307,7 @@ class PathSystem(System):
             m = player.component(Movement)
             return (m.max_jump_x, m.max_jump_y)
 
-    def create_nodes(self, entity):
+    def generate_nodes(self, entity):
         """
         Create pathnodes on top of given entity.
         """
@@ -338,11 +319,34 @@ class PathSystem(System):
         nodes = []
         width = spatial.width
         xpos = spatial.left
-        for i in range(width/config.NODE_SPACING):
+        for i in range(width/config.NODE_SPACING+1):
             node = PathNode((xpos, spatial.top), attach_to=entity)
             nodes.append(node)
+            self.manager.add_entities(node)
             xpos += config.NODE_SPACING
         return nodes
+
+    def generate_graph(self):
+
+        for entity in self.manager.systems:
+            if Walkable not in entity.components:
+                continue
+            for node in self.generate_nodes(entity):
+                self.nodes[node] = {}
+                self.reverse_edges[node] = set()
+        for player in self.manager.systems:
+            if PathFinding in player.components:
+
+                for node in self.nodes:
+                    log.info('graphing')
+                    edges = self.get_edges(node, player)
+                    self.set_edges(node, player, edges)
+
+    def set_edges(self, start, player, edges):
+        player = self._player_stats(player)
+        self.nodes[start][player] = edges
+        for edge in edges:
+            self.reverse_edges[edge].add(start)
 
     def get_edges(self, start, player, refresh=False):
         """
@@ -353,6 +357,8 @@ class PathSystem(System):
         to make sure there's a clear path.
         Return a set() of path nodes.
         """
+        log.info('getting edges from: %s, for player: %s',
+                 start, player)
         all_nodes = self.nodes
         m = player.component(Movement)
         max_jump_x = m.max_jump_x
@@ -365,6 +371,8 @@ class PathSystem(System):
 
         reachable = set()
         for n in all_nodes:
+            if n == start:
+                continue
             if abs(n[0]-start[0]) > max_jump_x:
                 continue
             if abs(n[1]-start[1]) > max_jump_y:
@@ -378,12 +386,14 @@ class PathSystem(System):
                 Spatial(width=abs(r[0]-start[0]), height=abs(r[1]-start[1])),
                 Collisions(no_handlers=True))
             s = testity.component(Spatial)
+            log.info('width: %s, height: %s', s.width, s.height)
+            tcol = testity.component(Collisions)
             if r[0] > start[0]:
                 # Edge is right of start
-                s.right = start[0]
+                s.left = start[0]
             elif r[0] < start[0]:
                 # Edge is left of start
-                s.left = start[0]
+                s.left = r[0]
             else:
                 # vertical line, what do?
                 s.left = start[0]
@@ -397,7 +407,7 @@ class PathSystem(System):
                 # Edge is level with start
                 s.bottom = start[1]
             blocked = False
-            for cop in self.collidables.objs_colliding:
+            for cop in self.collidables.objs_colliding(testity):
                 if r[0] > start[0] and 'left' in cop.solid_edges:
                     blocked = True
                     break
@@ -474,11 +484,16 @@ class PathSystem(System):
         path.pop()
         return path
 
-    def reverse_edges(self, edge):
-        """
-        Get all nodes that given node is an edge of.
-        """
-        return self.reverse_edges[edge]
+    def draw_graph(self):
+        b = cocos.batch.BatchableNode()
+        for node in self.nodes:
+            players = self.nodes[node].keys()
+            for edge in self.nodes[node][players[0]]:
+                l = draw.Line(
+                    (node[0], node[1]), (edge[0], edge[1]),
+                    rgba('yellow'), stroke_width=3)
+                b.add(l)
+        self.manager.layer.add(b, z=4)
 
     def update(self, dt):
         for node in self.nodes:
@@ -496,6 +511,7 @@ class SystemsManager(object):
         self.collidables = collidables
         self.layer = layer
         self.to_remove = set()
+        self.pathfinding = None
 
     def get_system(self, entity, system_type):
         for s in self.systems[entity]:
